@@ -1,0 +1,132 @@
+<!DOCTYPE html><!-- Declares the document type so the browser uses standards mode. -->
+<html lang="en"><!-- Sets the document language to English for accessibility and SEO. -->
+<head><!-- Begins the document head section that contains metadata and resources. -->
+  <meta charset="UTF-8"><!-- Defines the character encoding so text renders correctly. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"><!-- Ensures the page scales properly on different devices. -->
+  <title>Flipcard HTML Generator</title><!-- Sets the browser tab title for this generator page. -->
+  <style><!-- Starts the embedded CSS that styles the generator interface. -->
+    body {/* Targets the page body to control overall layout and typography. */
+      margin: 0;/* Removes default margins so spacing is fully controlled by our styles. */
+      padding: 32px;/* Adds consistent padding around the generator content. */
+      font-family: Arial, sans-serif;/* Sets a clean, readable font for the UI. */
+      background-color: #f5f5f5;/* Gives the generator page a subtle gray background. */
+      color: #111;/* Sets a dark text color for good contrast. */
+    }/* Ends the body style block. */
+    .generator {/* Styles the main generator card container. */
+      max-width: 720px;/* Limits the width so the form stays readable. */
+      margin: 0 auto;/* Centers the generator card horizontally on the page. */
+      background-color: #fff;/* Uses a white background for the card to stand out. */
+      border-radius: 12px;/* Rounds the corners for a modern look. */
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);/* Adds a soft shadow for depth. */
+      padding: 24px;/* Adds internal spacing inside the card. */
+    }/* Ends the generator container styles. */
+    h1 {/* Styles the main heading. */
+      margin-top: 0;/* Removes the default top margin to align with card padding. */
+      font-size: 24px;/* Sets a clear, prominent heading size. */
+    }/* Ends the heading styles. */
+    label {/* Styles form labels for clarity. */
+      display: block;/* Makes each label take the full width on its own line. */
+      font-weight: 600;/* Emphasizes labels for readability. */
+      margin-bottom: 8px;/* Adds spacing below each label. */
+    }/* Ends label styling. */
+    input[type="file"] {/* Styles the file input element. */
+      display: block;/* Places the file input on its own line. */
+      margin-bottom: 16px;/* Adds space below the file input. */
+    }/* Ends file input styling. */
+    .preview-wrapper {/* Styles the image preview container. */
+      display: flex;/* Uses flexbox to center the preview image. */
+      justify-content: center;/* Centers the preview horizontally. */
+      align-items: center;/* Centers the preview vertically. */
+      background-color: #fafafa;/* Gives a subtle background for the preview area. */
+      border: 1px dashed #ccc;/* Uses a dashed border to indicate a drop zone. */
+      border-radius: 8px;/* Rounds the preview container corners. */
+      height: 220px;/* Sets a fixed height for consistent layout. */
+      margin-bottom: 16px;/* Adds space below the preview area. */
+      overflow: hidden;/* Ensures oversized images don't overflow the container. */
+    }/* Ends preview wrapper styling. */
+    .preview-wrapper img {/* Styles the preview image itself. */
+      max-height: 100%;/* Keeps the preview image within the wrapper height. */
+      max-width: 100%;/* Keeps the preview image within the wrapper width. */
+      object-fit: contain;/* Preserves the aspect ratio without cropping. */
+    }/* Ends preview image styles. */
+    .actions {/* Styles the button row container. */
+      display: flex;/* Places buttons side by side. */
+      gap: 12px;/* Adds spacing between buttons. */
+      align-items: center;/* Aligns buttons vertically. */
+    }/* Ends the actions container styles. */
+    button {/* Styles all buttons in the form. */
+      padding: 10px 18px;/* Adds padding for a comfortable click target. */
+      border: none;/* Removes default button borders. */
+      border-radius: 6px;/* Rounds the button corners. */
+      background-color: #2563eb;/* Uses a blue background color. */
+      color: #fff;/* Sets the button text to white for contrast. */
+      font-size: 14px;/* Uses a readable font size. */
+      cursor: pointer;/* Shows a pointer cursor on hover. */
+    }/* Ends default button styles. */
+    button:disabled {/* Styles buttons when disabled. */
+      background-color: #94a3b8;/* Uses a muted color to indicate disabled state. */
+      cursor: not-allowed;/* Shows a not-allowed cursor when disabled. */
+    }/* Ends disabled button styles. */
+    a.download-link {/* Styles the download link to look like a button. */
+      text-decoration: none;/* Removes underline from the link. */
+      padding: 10px 18px;/* Adds padding to match button sizing. */
+      border-radius: 6px;/* Rounds the corners for consistency. */
+      background-color: #10b981;/* Uses a green background to indicate download. */
+      color: #fff;/* Sets the link text color to white. */
+      font-size: 14px;/* Matches the font size to buttons. */
+      display: inline-flex;/* Aligns the link as an inline flex item. */
+      align-items: center;/* Centers the link text vertically. */
+    }/* Ends download link styles. */
+  </style><!-- Ends the embedded CSS styles. -->
+</head><!-- Ends the document head section. -->
+<body><!-- Begins the visible document body section. -->
+  <div class="generator"><!-- Wraps all generator content in a styled card. -->
+    <h1>Flipcard HTML Generator</h1><!-- Displays the main title for the generator. -->
+    <p>Upload an image to include on the generated flipcard landing page.</p><!-- Provides a brief instruction for users. -->
+    <label for="imageInput">Upload image</label><!-- Labels the file input for accessibility. -->
+    <input id="imageInput" type="file" accept="image/*"><!-- Lets the user pick an image file. -->
+    <div class="preview-wrapper"><!-- Provides a container to preview the uploaded image. -->
+      <img id="preview" alt="Uploaded preview"><!-- Shows the selected image preview when available. -->
+    </div><!-- Ends the preview wrapper. -->
+    <div class="actions"><!-- Groups the generate button and download link. -->
+      <button id="generateButton" disabled>Generate HTML</button><!-- Triggers HTML generation once an image is loaded. -->
+      <a id="downloadLink" class="download-link" href="#" download="flipcard.html" style="display: none;">Download HTML</a><!-- Provides the generated HTML file for download. -->
+    </div><!-- Ends the actions container. -->
+  </div><!-- Ends the generator card. -->
+  <script><!-- Starts the embedded JavaScript for interactivity. -->
+    const imageInput = document.getElementById("imageInput"); // Grabs the file input element for image uploads.
+    const previewImage = document.getElementById("preview"); // Grabs the preview image element to show the upload.
+    const generateButton = document.getElementById("generateButton"); // Grabs the generate button to control its state.
+    const downloadLink = document.getElementById("downloadLink"); // Grabs the download link to attach the generated file.
+    let uploadedImageDataUrl = ""; // Stores the uploaded image as a data URL for embedding.
+    imageInput.addEventListener("change", (event) => { // Listens for when the user selects a file.
+      const file = event.target.files[0]; // Reads the first selected file from the input.
+      if (!file) { // Checks whether a file was actually selected.
+        previewImage.removeAttribute("src"); // Clears the preview if no file is selected.
+        generateButton.disabled = true; // Disables the generate button until a file is chosen.
+        downloadLink.style.display = "none"; // Hides the download link when there is no generated file.
+        uploadedImageDataUrl = ""; // Clears the stored data URL.
+        return; // Exits early because there is nothing to process.
+      } // Ends the no-file guard block.
+      const reader = new FileReader(); // Creates a FileReader to convert the image to a data URL.
+      reader.addEventListener("load", () => { // Runs when the file has been read.
+        uploadedImageDataUrl = String(reader.result || ""); // Stores the resulting data URL string.
+        previewImage.src = uploadedImageDataUrl; // Updates the preview image to show the upload.
+        generateButton.disabled = !uploadedImageDataUrl; // Enables the generate button when data is available.
+        downloadLink.style.display = "none"; // Hides the download link until a new HTML file is generated.
+      }); // Ends the FileReader load handler.
+      reader.readAsDataURL(file); // Starts reading the file as a data URL.
+    }); // Ends the file input change handler.
+    generateButton.addEventListener("click", () => { // Listens for clicks on the generate button.
+      if (!uploadedImageDataUrl) { // Ensures an image is loaded before generating HTML.
+        return; // Exits if there is no image data to embed.
+      } // Ends the guard clause.
+      const generatedHtml = `<!DOCTYPE html><!-- Declares the document type so the browser uses standards mode. -->\n<html lang="en"><!-- Sets the document language to English. -->\n<head><!-- Opens the head section for metadata and styles. -->\n  <meta charset="UTF-8"><!-- Sets the character encoding for correct text rendering. -->\n  <meta name="viewport" content="width=device-width, initial-scale=1.0"><!-- Ensures responsive scaling on different screens. -->\n  <title>Flipcard Landing</title><!-- Sets the title for the generated page. -->\n  <style><!-- Starts embedded styles for the generated layout. -->\n    html, body {/* Targets the root and body elements for sizing. */\n      margin: 0;/* Removes default margins for a clean 1920x720 canvas. */\n      padding: 0;/* Removes default padding to match the exact size. */\n      width: 100%;/* Ensures the root and body span full width. */\n      height: 100%;/* Ensures the root and body span full height. */\n      background-color: #ffffff;/* Sets a white background as requested. */\n      font-family: Arial, sans-serif;/* Applies a consistent font to text. */\n    }/* Ends the html/body styling. */\n    .page {/* Styles the main canvas container. */\n      width: 1920px;/* Fixes the canvas width to 1920 pixels. */\n      height: 720px;/* Fixes the canvas height to 720 pixels. */\n      margin: 0 auto;/* Centers the canvas horizontally in the viewport. */\n      display: flex;/* Uses flexbox to stack content vertically. */\n      flex-direction: column;/* Arranges content from top to bottom. */\n      align-items: center;/* Centers all content horizontally. */\n      justify-content: flex-start;/* Starts content at the top of the canvas. */\n      background-color: #ffffff;/* Ensures the canvas background is white. */\n      box-sizing: border-box;/* Includes padding in the width/height calculation. */\n      padding-top: 32px;/* Adds top spacing above the image. */\n      gap: 16px;/* Adds consistent spacing between sections. */\n    }/* Ends the canvas container styling. */\n    .hero-image {/* Styles the main uploaded image. */\n      width: auto;/* Lets the image determine its width from its aspect ratio. */\n      height: 480px;/* Sets the image height to two-thirds of 720px. */\n      max-width: 90%;/* Prevents the image from exceeding the canvas width. */\n      object-fit: contain;/* Keeps the full image visible without cropping. */\n    }/* Ends the hero image styling. */\n    .message {/* Styles the message text below the image. */\n      font-size: 24px;/* Sets a readable size for the message. */\n      text-align: center;/* Centers the message text. */\n      margin: 0;/* Removes default margins for tight control. */\n    }/* Ends the message styling. */\n    .submessage {/* Styles the secondary message text. */\n      font-size: 20px;/* Makes the secondary text slightly smaller. */\n      text-align: center;/* Centers the secondary text. */\n      margin: 0;/* Removes default margins for consistent spacing. */\n    }/* Ends the submessage styling. */\n    .start-button {/* Styles the start button. */\n      margin-top: 8px;/* Adds spacing above the button. */\n      padding: 12px 28px;/* Sizes the button for comfortable clicking. */\n      font-size: 18px;/* Sets the button text size. */\n      border: none;/* Removes the default border. */\n      border-radius: 8px;/* Rounds the button corners. */\n      background-color: #2563eb;/* Applies a blue background to the button. */\n      color: #ffffff;/* Sets the button text to white. */\n      cursor: pointer;/* Shows a pointer cursor to indicate clickability. */\n    }/* Ends the start button styling. */\n  </style><!-- Ends the embedded styles. -->\n</head><!-- Closes the head section. -->\n<body><!-- Opens the body section for visible content. -->\n  <div class="page"><!-- Wraps all content inside the fixed-size canvas. -->\n    <img class="hero-image" src="${uploadedImageDataUrl}" alt="Uploaded image"><!-- Inserts the uploaded image at the top. -->\n    <p class="message">Click the 'Start' button to start the flipcard interactive.</p><!-- Adds the primary instruction text. -->\n    <p class="submessage">You can flip cards by clicking them!</p><!-- Adds the secondary instruction text. -->\n    <button class="start-button" type="button">Start</button><!-- Adds the start button without any linked action. -->\n  </div><!-- Closes the page container. -->\n</body><!-- Closes the body section. -->\n</html><!-- Ends the HTML document. -->`;// Defines the HTML template string to download.
+      const blob = new Blob([generatedHtml], { type: "text/html" }); // Creates a Blob from the HTML string for download.
+      const downloadUrl = URL.createObjectURL(blob); // Generates a temporary URL for the Blob.
+      downloadLink.href = downloadUrl; // Points the download link to the generated Blob URL.
+      downloadLink.style.display = "inline-flex"; // Reveals the download link once ready.
+    }); // Ends the generate button click handler.
+  </script><!-- Ends the embedded JavaScript. -->
+</body><!-- Ends the document body section. -->
+</html><!-- Ends the HTML document. -->
