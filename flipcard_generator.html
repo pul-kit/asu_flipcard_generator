@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flipcard HTML Generator</title>
+  <style>
+    body{margin:0;padding:32px;font-family:Arial,sans-serif;background:#f5f5f5;color:#111;}
+    .generator{max-width:720px;margin:0 auto;background:#fff;border-radius:12px;box-shadow:0 10px 25px rgba(0,0,0,.1);padding:24px;}
+    h1{margin:0 0 10px;font-size:24px;}
+    label{display:block;font-weight:600;margin:14px 0 8px;}
+    input[type="file"]{display:block;margin-bottom:6px;}
+    select{display:block;margin-bottom:6px;padding:8px 10px;border-radius:6px;border:1px solid #cbd5f5;font-size:14px;}
+    .actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+    button{padding:10px 18px;border:none;border-radius:6px;background:#2563eb;color:#fff;font-size:14px;cursor:pointer;}
+    button:disabled{background:#94a3b8;cursor:not-allowed;}
+    a.download-link{text-decoration:none;padding:10px 18px;border-radius:6px;background:#10b981;color:#fff;font-size:14px;display:inline-flex;align-items:center;}
+    .hint{color:#475569;font-size:13px;margin:0;}
+
+    .warn{
+      margin-top:6px;
+      font-size:12px;
+      line-height:1.2;
+      color:#b45309;
+      display:none;
+    }
+    .warn.bad{ color:#b91c1c; }
+
+    .card-editor{margin-top:14px;border:1px solid #e2e8f0;border-radius:10px;padding:14px;background:#fbfdff;}
+    .card-editor h3{margin:0 0 10px;font-size:16px;}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    .field label{margin:0 0 6px;font-weight:600;font-size:13px;color:#0f172a;}
+    .field textarea{
+      width:100%;
+      min-height:70px;
+      padding:10px 12px;
+      border-radius:8px;
+      border:1px solid #cbd5e1;
+      font-size:14px;
+      resize:vertical;
+      box-sizing:border-box;
+    }
+    @media (max-width: 640px){
+      .grid{grid-template-columns:1fr;}
+    }
+  </style>
+</head>
+<body>
+  <div class="generator">
+    <h1>Flipcard HTML Generator</h1>
+    <p class="hint">Upload an image to include on the generated flipcard landing page.</p>
+
+    <label for="imageInput">Upload image</label>
+    <input id="imageInput" type="file" accept="image/*" />
+
+    <label for="themeSelect">Choose a theme</label>
+    <select id="themeSelect">
+      <option value="orange">Orange</option>
+      <option value="blue">Blue</option>
+    </select>
+
+    <label for="cardCountSelect">Choose number of flipcards</label>
+    <select id="cardCountSelect">
+      <option value="2" selected>2 flipcards</option>
+      <option value="3">3 flipcards</option>
+      <option value="4">4 flipcards</option>
+      <option value="5">5 flipcards</option>
+      <option value="6">6 flipcards</option>
+      <option value="7">7 flipcards</option>
+      <option value="8">8 flipcards</option>
+    </select>
+
+    <div id="cardTextFields"></div>
+
+    <div class="actions" style="margin-top:16px;">
+      <button id="generateButton" disabled>Generate HTML</button>
+      <a id="downloadLink" class="download-link" href="#" download="flipcard.html" style="display:none;">Download HTML</a>
+    </div>
+  </div>
+
+  <script>
+    const imageInput = document.getElementById("imageInput");
+    const generateButton = document.getElementById("generateButton");
+    const downloadLink = document.getElementById("downloadLink");
+    const themeSelect = document.getElementById("themeSelect");
+    const cardCountSelect = document.getElementById("cardCountSelect");
+    const cardTextFields = document.getElementById("cardTextFields");
+
+    let uploadedImageDataUrl = "";
+
+    function escapeHtml(str){
+      return String(str ?? "")
+        .replace(/&/g,"&amp;")
+        .replace(/</g,"&lt;")
+        .replace(/>/g,"&gt;")
+        .replace(/"/g,"&quot;")
+        .replace(/'/g,"&#39;");
+    }
+
+    // --- Live preview warnings (text auto-fit estimation) ---
+    function textOverflows(el){
+      return (el.scrollHeight - 1 > el.clientHeight) || (el.scrollWidth - 1 > el.clientWidth);
+    }
+
+    function fitTextToBox(text, boxW, boxH, opts){
+      const { minPx, maxPx } = opts;
+      const el = document.createElement("div");
+      el.style.width = boxW + "px";
+      el.style.height = boxH + "px";
+      el.style.boxSizing = "border-box";
+      el.style.border = "2px solid transparent";
+      el.style.padding = "18px";
+      el.style.fontFamily = "Arial, sans-serif";
+      el.style.fontWeight = String(opts.fontWeight ?? 700);
+      el.style.whiteSpace = "pre-wrap";
+      el.style.wordBreak = String(opts.wordBreak ?? "break-word");
+      el.style.overflowWrap = String(opts.overflowWrap ?? "break-word");
+      el.style.hyphens = String(opts.hyphens ?? "manual");
+      el.style.textAlign = "center";
+      el.style.lineHeight = "1.1";
+      el.style.display = "flex";
+      el.style.alignItems = "center";
+      el.style.justifyContent = "center";
+      el.textContent = text || "";
+
+      const host = document.createElement("div");
+      host.style.position = "absolute";
+      host.style.left = "-99999px";
+      host.style.top = "-99999px";
+      host.style.visibility = "hidden";
+      host.style.pointerEvents = "none";
+      document.body.appendChild(host);
+      host.appendChild(el);
+
+      let size = maxPx;
+      let overflow = false;
+      for(size = maxPx; size >= minPx; size -= 1){
+        el.style.fontSize = size + "px";
+        const tooTall = el.scrollHeight - 1 > el.clientHeight;
+        const tooWide = el.scrollWidth - 1 > el.clientWidth;
+        if(!tooTall && !tooWide){ overflow = false; break; }
+        overflow = true;
+      }
+      el.style.fontSize = size + "px";
+      overflow = (el.scrollHeight - 1 > el.clientHeight) || (el.scrollWidth - 1 > el.clientWidth);
+
+      document.body.removeChild(host);
+      return { sizePx: size, overflow };
+    }
+
+    function buildRowsForCount(count){
+      if(count === 2) return [2];
+      if(count === 3) return [3];
+      if(count === 4) return [2,2];
+      if(count === 5) return [2,3];
+      if(count === 6) return [3,3];
+      if(count === 7) return [3,4];
+      if(count === 8) return [4,4];
+      return [count];
+    }
+
+    function estimateCardBox(cardCount, cardIndex){
+      // Preview estimate assumes a typical 16:9 stage within 960x540,
+      // but uses the same layout math (gaps/rows) as the generated page.
+      const PAGE_W = 960, PAGE_H = 540;
+      const PAD = 18;
+      const GAP = 24;
+
+      const innerW = PAGE_W - (PAD*2);
+      const innerH = PAGE_H - (PAD*2);
+
+      // stage tries to fill most of the page
+      const stageW = innerW * 0.92;
+      const stageH = innerH * 0.90;
+
+      const plan = buildRowsForCount(cardCount);
+      let idx = 0;
+
+      for(let r=0; r<plan.length; r+=1){
+        const cols = plan[r];
+        const rowH = (plan.length === 2) ? Math.floor((stageH - GAP)/2) : Math.floor(stageH);
+
+        for(let c=0; c<cols; c+=1){
+          if(idx === cardIndex){
+            const cardW = Math.floor((stageW - (GAP*(cols-1))) / cols);
+            return { w: cardW, h: rowH };
+          }
+          idx += 1;
+        }
+      }
+      return { w: 300, h: 200 };
+    }
+
+    function applyWarn(warnEl, fit, maxPx){
+      warnEl.classList.remove("bad");
+      if(!fit) { warnEl.style.display = "none"; return; }
+
+      if(fit.overflow){
+        warnEl.textContent = "Too much text — it may overflow even at the minimum size.";
+        warnEl.classList.add("bad");
+        warnEl.style.display = "block";
+        return;
+      }
+
+      if(fit.sizePx < maxPx){
+        warnEl.textContent = `Text will shrink to ~${fit.sizePx}px to fit in the card.`;
+        warnEl.style.display = "block";
+        return;
+      }
+
+      warnEl.style.display = "none";
+    }
+
+    function updateWarningsForAll(){
+      const count = Number(cardCountSelect.value || 2);
+      for(let i=1;i<=count;i+=1){
+        const frontEl = document.getElementById(`card${i}Front`);
+        const backEl  = document.getElementById(`card${i}Back`);
+        const frontWarn = document.getElementById(`card${i}FrontWarn`);
+        const backWarn  = document.getElementById(`card${i}BackWarn`);
+        if(!frontEl || !backEl || !frontWarn || !backWarn) continue;
+
+        const box = estimateCardBox(count, i-1);
+        const MIN = 8;
+
+        const baseMax = box.w * 0.14;
+        const frontMax = Math.round(baseMax * 0.88);
+        const backMax  = Math.round(baseMax);
+
+        const frontFit = fitTextToBox(frontEl.value, box.w, box.h, {minPx: MIN, maxPx: frontMax, fontWeight: 700, wordBreak: "normal", overflowWrap: "normal", hyphens: "none"});
+        const backFit  = fitTextToBox(backEl.value,  box.w, box.h, {minPx: MIN, maxPx: backMax,  fontWeight: 400, wordBreak: "break-word", overflowWrap: "break-word", hyphens: "manual"});
+
+        applyWarn(frontWarn, frontFit, frontMax);
+        applyWarn(backWarn,  backFit,  backMax);
+      }
+    }
+
+    let _warnTimer = null;
+    function scheduleWarnings(){
+      window.clearTimeout(_warnTimer);
+      _warnTimer = window.setTimeout(updateWarningsForAll, 80);
+    }
+
+    function renderCardTextInputs(){
+      const count = Number(cardCountSelect.value || 2);
+      cardTextFields.innerHTML = "";
+
+      for(let i=1;i<=count;i+=1){
+        const wrap = document.createElement("div");
+        wrap.className = "card-editor";
+
+        const title = document.createElement("h3");
+        title.textContent = `Flipcard ${i}`;
+        wrap.appendChild(title);
+
+        const grid = document.createElement("div");
+        grid.className = "grid";
+
+        const frontField = document.createElement("div");
+        frontField.className = "field";
+        const frontLabel = document.createElement("label");
+        frontLabel.setAttribute("for", `card${i}Front`);
+        frontLabel.textContent = "Front text";
+        const frontInput = document.createElement("textarea");
+        frontInput.id = `card${i}Front`;
+        frontInput.placeholder = "Enter the text for the FRONT of this flipcard";
+        frontInput.value = "Front";
+        frontField.appendChild(frontLabel);
+        frontField.appendChild(frontInput);
+
+        const frontWarn = document.createElement("div");
+        frontWarn.className = "warn";
+        frontWarn.id = `card${i}FrontWarn`;
+        frontField.appendChild(frontWarn);
+
+        const backField = document.createElement("div");
+        backField.className = "field";
+        const backLabel = document.createElement("label");
+        backLabel.setAttribute("for", `card${i}Back`);
+        backLabel.textContent = "Back text";
+        const backInput = document.createElement("textarea");
+        backInput.id = `card${i}Back`;
+        backInput.placeholder = "Enter the text for the BACK of this flipcard";
+        backInput.value = "Back";
+        backField.appendChild(backLabel);
+        backField.appendChild(backInput);
+
+        const backWarn = document.createElement("div");
+        backWarn.className = "warn";
+        backWarn.id = `card${i}BackWarn`;
+        backField.appendChild(backWarn);
+
+        grid.appendChild(frontField);
+        grid.appendChild(backField);
+        wrap.appendChild(grid);
+        cardTextFields.appendChild(wrap);
+      }
+    }
+
+    renderCardTextInputs();
+    updateWarningsForAll();
+    cardTextFields.addEventListener('input', scheduleWarnings);
+
+    cardCountSelect.addEventListener("change", () => {
+      renderCardTextInputs();
+      downloadLink.style.display = "none";
+      updateWarningsForAll();
+    });
+
+    imageInput.addEventListener("change", (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) {
+        generateButton.disabled = true;
+        downloadLink.style.display = "none";
+        uploadedImageDataUrl = "";
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.addEventListener("load", () => {
+        uploadedImageDataUrl = String(reader.result || "");
+        generateButton.disabled = !uploadedImageDataUrl;
+        downloadLink.style.display = "none";
+      });
+      reader.readAsDataURL(file);
+    });
+
+    generateButton.addEventListener("click", () => {
+      if (!uploadedImageDataUrl) return;
+
+      const themeValue = themeSelect.value;
+      const cardCount = Number(cardCountSelect.value || 2);
+
+      const cardsData = [];
+      for(let i=1;i<=cardCount;i+=1){
+        const frontEl = document.getElementById(`card${i}Front`);
+        const backEl = document.getElementById(`card${i}Back`);
+        const frontText = (frontEl && frontEl.value.trim()) ? frontEl.value.trim() : "Front";
+        const backText  = (backEl && backEl.value.trim()) ? backEl.value.trim() : "Back";
+        cardsData.push({ front: frontText, back: backText });
+      }
+
+      const themeColors = themeValue === "blue"
+        ? { text: "#00a3e0", buttonBorder: "#00a3e0", buttonBg: "#e6f6fc", cardBorder: "#00a3e0", cardBackBg: "#e6f6fc" }
+        : { text: "#ff7f32", buttonBorder: "#ff7f32", buttonBg: "#fff2eb", cardBorder: "#ff7f32", cardBackBg: "#fff2eb" };
+
+      const generatedHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flipcard Interactive</title>
+  <style>
+    html, body { margin:0; padding:0; width:100%; height:100%; background:#fff; font-family:Arial,sans-serif; }
+
+    /* Key behavior:
+       - No transform scaling (so browser zoom yields scrollbars instead of re-scaling everything to fit).
+       - The interactive itself fills the available embed area at 100% zoom. */
+    .viewport{
+      width:100%;
+      height:100%;
+      display:flex;
+      align-items:stretch;
+      justify-content:stretch;
+      overflow:auto;
+      background:#fff;
+    }
+
+    .page{
+      width:100%;
+      height:100%;
+      min-width:960px;   /* keep a sane minimum design size */
+      min-height:540px;
+      box-sizing:border-box;
+      position:relative;
+      overflow:visible;
+    }
+
+    .landing, .scene{
+      width:100%;
+      height:100%;
+      box-sizing:border-box;
+    }
+
+    .landing{
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:flex-start;
+      gap:var(--landingGap, 14px);
+      padding:22px 24px var(--landingPadBottom, 24px);
+      overflow:auto; /* allow scroll if zoom makes it tight */
+    }
+
+    .hero-slot{
+      width:100%;
+      height:var(--heroH, 60%);
+      flex:0 0 auto;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      min-height:0;
+    }
+
+    .hero-image{
+      max-width:94%;
+      max-height:100%;
+      width:auto;
+      height:auto;
+      object-fit:contain;
+    }
+
+    .cta-block{
+      width:100%;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      gap:var(--landingGap, 14px);
+      padding-bottom:0;
+      box-sizing:border-box;
+    }
+
+    .message{
+      width:90%;
+      max-width:90%;
+      font-size:32px;
+      text-align:center;
+      margin:0;
+      font-weight:800;
+      color:${themeColors.text};
+      white-space:nowrap;
+    }
+    .submessage{
+      width:55%;
+      max-width:55%;
+      font-size:24px;
+      text-align:center;
+      margin:0;
+      font-weight:800;
+      color:${themeColors.text};
+      white-space:nowrap;
+    }
+
+    .start-button{
+      margin-top:0;
+      padding:18px 42px; /* +50% */
+      font-size:27px;    /* +50% */
+      border:2px solid ${themeColors.buttonBorder};
+      border-radius:10px;
+      background:${themeColors.buttonBg};
+      color:${themeColors.text};
+      cursor:pointer;
+    }
+
+    .scene{
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding:18px;
+      overflow:visible;
+    }
+
+    /* Stage will be set in JS in absolute px based on available space */
+    .cards-area{
+      display:flex;
+      flex-direction:column;
+      gap:24px;
+      box-sizing:border-box;
+      overflow:visible;
+      max-width:100%;
+      max-height:100%;
+    }
+
+    .cards-row{
+      display:flex;
+      align-items:stretch;
+      justify-content:center;
+      gap:24px;
+      box-sizing:border-box;
+    }
+
+    .flipcard{ flex:0 0 auto; perspective:1200px; overflow:visible; }
+
+    .flipcard-inner{
+      position:relative; width:100%; height:100%;
+      transform-style:preserve-3d;
+      transition:transform 600ms ease;
+      cursor:pointer;
+    }
+
+    .flipcard.flipped .flipcard-inner{ transform:rotateY(180deg); }
+
+    .flipcard-face{
+      position:absolute; inset:0;
+      display:flex; align-items:center; justify-content:center;
+      font-size:32px; font-weight:700;
+      line-height:1.1;
+      border-radius:14px; border:2px solid ${themeColors.cardBorder};
+      backface-visibility:hidden; user-select:none;
+      background:#fff;
+      text-align:center;
+      padding:18px;
+      box-sizing:border-box;
+      white-space:pre-wrap;
+      word-break:normal;
+      overflow-wrap:normal;
+      hyphens:none;
+    }
+
+    .flipcard-front{ font-weight:700; }
+    .flipcard-back{ transform:rotateY(180deg); background:${themeColors.cardBackBg}; font-weight:400; }
+  </style>
+</head>
+<body>
+  <div class="viewport">
+    <div class="page">
+      <section class="landing" id="landing">
+        <div class="hero-slot">
+          <img class="hero-image" src="${uploadedImageDataUrl}" alt="Uploaded image">
+        </div>
+        <div class="cta-block" id="ctaBlock">
+          <p class="message" id="landingMsg">Click the 'Start' button to start the flipcard interactive.</p>
+          <p class="submessage" id="landingSub">You can flip cards by clicking them!</p>
+          <button class="start-button" id="startBtn" type="button">Start</button>
+        </div>
+      </section>
+
+      <section class="scene" id="scene">
+        <div class="cards-area" id="cardsArea"></div>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const startBtn = document.getElementById('startBtn');
+    const landing = document.getElementById('landing');
+    const scene = document.getElementById('scene');
+    const cardsArea = document.getElementById('cardsArea');
+
+    const landingMsg = document.getElementById('landingMsg');
+    const landingSub = document.getElementById('landingSub');
+    const ctaBlock = document.getElementById('ctaBlock');
+
+    const cardsData = ${JSON.stringify(cardsData)};
+
+    function escapeHtml(str){
+      return String(str ?? "")
+        .replace(/&/g,"&amp;")
+        .replace(/</g,"&lt;")
+        .replace(/>/g,"&gt;")
+        .replace(/"/g,"&quot;")
+        .replace(/'/g,"&#39;");
+    }
+
+    function createFlipcard(frontText, backText){
+      const card = document.createElement('div');
+      card.className = 'flipcard';
+
+      const inner = document.createElement('div');
+      inner.className = 'flipcard-inner';
+
+      const front = document.createElement('div');
+      front.className = 'flipcard-face flipcard-front';
+      front.innerHTML = escapeHtml(frontText);
+
+      const back = document.createElement('div');
+      back.className = 'flipcard-face flipcard-back';
+      back.innerHTML = escapeHtml(backText);
+
+      inner.appendChild(front);
+      inner.appendChild(back);
+      card.appendChild(inner);
+
+      card.addEventListener('click', () => card.classList.toggle('flipped'));
+      return card;
+    }
+
+    function textOverflows(el){
+      return (el.scrollHeight - 1 > el.clientHeight) || (el.scrollWidth - 1 > el.clientWidth);
+    }
+
+    function fitElementText(el, opts){
+      const maxPx = opts.maxPx ?? 32;
+      const minPx = opts.minPx ?? 8;
+
+      // Binary-ish: step down by 1px (fast enough for <= 8 cards)
+      let size = maxPx;
+      el.style.fontSize = size + "px";
+
+      while(size > minPx && textOverflows(el)){
+        size -= 1;
+        el.style.fontSize = size + "px";
+      }
+      el.style.fontSize = Math.max(size, minPx) + "px";
+      return { sizePx: Math.max(size, minPx), overflow: textOverflows(el) };
+    }
+
+    function buildRowsForCount(count){
+      if(count === 2) return [2];
+      if(count === 3) return [3];
+      if(count === 4) return [2, 2];
+      if(count === 5) return [2, 3];
+      if(count === 6) return [3, 3];
+      if(count === 7) return [3, 4];
+      if(count === 8) return [4, 4];
+      return [count];
+    }
+
+    // Build DOM rows/cards
+    const rowPlan = buildRowsForCount(cardsData.length);
+    let idx = 0;
+    for(const cols of rowPlan){
+      const row = document.createElement('div');
+      row.className = 'cards-row';
+      row.dataset.cols = String(cols);
+
+      for(let j=0; j<cols && idx<cardsData.length; j+=1){
+        const c = cardsData[idx] || {};
+        row.appendChild(createFlipcard(c.front, c.back));
+        idx += 1;
+      }
+      cardsArea.appendChild(row);
+    }
+
+    function layoutCards(){
+      const GAP = 24;
+      const PAD = 18;
+
+      // Available space inside scene after padding
+      const availW = Math.max(320, scene.clientWidth - (PAD*2));
+      const availH = Math.max(240, scene.clientHeight - (PAD*2));
+
+      // Stage fills most of available scene while leaving a bit of breathing room
+      const stageW = Math.floor(availW * 0.92);
+      const stageH = Math.floor(availH * 0.90);
+
+      cardsArea.style.width = stageW + "px";
+      cardsArea.style.height = stageH + "px";
+      cardsArea.style.gap = GAP + "px";
+
+      const rows = Array.from(cardsArea.querySelectorAll('.cards-row'));
+      const twoRows = rows.length === 2;
+      const rowH = twoRows ? Math.floor((stageH - GAP) / 2) : stageH;
+
+      rows.forEach(r => {
+        const cols = Number(r.dataset.cols || r.children.length || 1);
+        r.style.height = rowH + "px";
+        r.style.gap = GAP + "px";
+
+        const cardW = Math.floor((stageW - (GAP * (cols - 1))) / cols);
+        Array.from(r.children).forEach(cardEl => {
+          cardEl.style.width = cardW + "px";
+          cardEl.style.height = rowH + "px";
+        });
+      });
+    }
+
+    function applyCardAutoFit(){
+      const faces = document.querySelectorAll('.flipcard-face');
+      faces.forEach(face => {
+        const card = face.closest('.flipcard');
+        if(!card) return;
+
+        const cardWidth = card.clientWidth;
+        let maxPx = cardWidth * 0.14;
+
+        if(face.classList.contains('flipcard-front')) maxPx *= 0.88;
+
+        fitElementText(face, { maxPx: Math.round(maxPx), minPx: 8 });
+      });
+    }
+
+    function syncLandingLayout(){
+      // Image should take at most 60% of landing height
+      const landingH = landing.clientHeight || 540;
+      landing.style.setProperty('--heroH', Math.floor(landingH * 0.60) + "px");
+
+      // Align bottom of Start button with the bottom of the lowest flipcard row.
+      // In the scene, the cards stage is vertically centered, so the bottom inset is (sceneH - stageH) / 2.
+      const PAD = 18;
+      const sceneH = scene.clientHeight || landingH;
+      const innerH = Math.max(240, sceneH - (PAD * 2));
+      const stageH = Math.floor(innerH * 0.90);
+      const inset = Math.max(12, Math.floor((sceneH - stageH) / 2));
+      landing.style.setProperty('--landingPadBottom', inset + "px");
+    }
+
+    function fitLandingText(){
+      // Force single-line; shrink as needed to fit the target widths (90% / 55%).
+      const msgW = Math.max(240, landingMsg.clientWidth);
+      const subW = Math.max(200, landingSub.clientWidth);
+
+      let msgMax = Math.round(msgW * 0.13);   // scales with width
+      let subMax = Math.round(subW * 0.18);
+
+      msgMax = Math.min(msgMax, 96);
+      subMax = Math.min(subMax, 72);
+      subMax = Math.min(subMax, msgMax - 6);
+
+      fitElementText(landingMsg, { maxPx: msgMax, minPx: 12 });
+      fitElementText(landingSub, { maxPx: subMax, minPx: 10 });
+    }
+
+    // Zoom/viewport changes don't always trigger window.resize. Cover the common cases.
+    function watchViewportChanges(fn){
+      let lastDpr = window.devicePixelRatio || 1;
+
+      const tick = () => {
+        const dpr = window.devicePixelRatio || 1;
+        if(Math.abs(dpr - lastDpr) > 0.001){
+          lastDpr = dpr;
+          fn();
+        }
+      };
+
+      window.addEventListener('resize', fn, { passive:true });
+
+      if(window.visualViewport){
+        window.visualViewport.addEventListener('resize', fn, { passive:true });
+        window.visualViewport.addEventListener('scroll', fn, { passive:true });
+      }
+
+      // lightweight polling for dpr changes (zoom)
+      setInterval(tick, 250);
+    }
+
+    function relayoutAll(){
+      // Landing sizes
+      syncLandingLayout();
+      fitLandingText();
+
+      // Cards sizes only matter once scene visible,
+      // but we can still compute without harm.
+      layoutCards();
+      applyCardAutoFit();
+    }
+
+    // Initial fit
+    relayoutAll();
+    watchViewportChanges(relayoutAll);
+
+    startBtn.addEventListener('click', () => {
+      landing.style.display = 'none';
+      scene.style.display = 'flex';
+      // Now that scene is visible, finalize layout/text fit
+      relayoutAll();
+    });
+  <\/script>
+</body>
+</html>`;
+
+      const blob = new Blob([generatedHtml], { type: "text/html" });
+      const downloadUrl = URL.createObjectURL(blob);
+      downloadLink.href = downloadUrl;
+      downloadLink.style.display = "inline-flex";
+    });
+  </script>
+</body>
+</html>
