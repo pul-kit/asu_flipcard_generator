@@ -52,6 +52,17 @@
 
     <label for="imageInput">Upload image</label>
     <input id="imageInput" type="file" accept="image/*" />
+    <div id="landingTextFields" style="display:none;margin-top:10px;padding:12px;border:1px solid #e2e8f0;border-radius:8px;background:#fbfdff;">
+      <p class="hint" style="margin:0 0 10px;">Customize the text shown on the landing page above the Start button.</p>
+      <div>
+        <label for="landingMessage" style="font-size:13px;font-weight:600;">Landing page message</label>
+        <input id="landingMessage" type="text" value="Click the 'Start' button to start the flipcard interactive." style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid #cbd5e1;font-size:14px;box-sizing:border-box;margin-top:4px;" />
+      </div>
+      <div style="margin-top:10px;">
+        <label for="landingSubmessage" style="font-size:13px;font-weight:600;">Landing page submessage</label>
+        <input id="landingSubmessage" type="text" value="You can flip cards by clicking them!" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid #cbd5e1;font-size:14px;box-sizing:border-box;margin-top:4px;" />
+      </div>
+    </div>
 
     <label for="bgImageInput">Upload background image (optional)</label>
     <p class="hint">Replaces the white background behind the flipcards. Shows on both the landing page and flipcard view.</p>
@@ -124,6 +135,9 @@
     const darkerShadeInput = document.getElementById("darkerShade");
     const lighterShadeInput = document.getElementById("lighterShade");
     const bgImageInput = document.getElementById("bgImageInput");
+    const landingTextFields = document.getElementById("landingTextFields");
+    const landingMessageInput = document.getElementById("landingMessage");
+    const landingSubmessageInput = document.getElementById("landingSubmessage");
 
     let uploadedImageDataUrl = "";
     let uploadedBgImageDataUrl = "";
@@ -135,6 +149,10 @@
         .replace(/>/g,"&gt;")
         .replace(/"/g,"&quot;")
         .replace(/'/g,"&#39;");
+    }
+
+    function escapeForTemplate(str){
+      return escapeHtml(str).replace(/`/g,"&#96;").replace(/\$/g,"&#36;").replace(/\\/g,"&#92;");
     }
 
     // --- Live preview warnings (text auto-fit estimation) ---
@@ -368,6 +386,7 @@
       if (!file) {
         downloadLink.style.display = "none";
         uploadedImageDataUrl = "";
+        landingTextFields.style.display = "none";
         return;
       }
 
@@ -375,6 +394,7 @@
       reader.addEventListener("load", () => {
         uploadedImageDataUrl = String(reader.result || "");
         downloadLink.style.display = "none";
+        landingTextFields.style.display = "";
       });
       reader.readAsDataURL(file);
     });
@@ -412,6 +432,13 @@
         const backText  = (backEl && backEl.value.trim()) ? backEl.value.trim() : "Back";
         cardsData.push({ front: frontText, back: backText });
       }
+
+      const landingMsgText = escapeForTemplate(
+        landingMessageInput.value.trim() || "Click the 'Start' button to start the flipcard interactive."
+      );
+      const landingSubText = escapeForTemplate(
+        landingSubmessageInput.value.trim() || "You can flip cards by clicking them!"
+      );
 
       const themeMap = {
         orange: { text: "#ff7f32", buttonBorder: "#ff7f32", buttonBg: "#fff2eb", cardBorder: "#ff7f32", cardBackBg: "#fff2eb" },
@@ -613,8 +640,8 @@
           <img class="hero-image" src="${uploadedImageDataUrl}" alt="Uploaded image">
         </div>
         <div class="cta-block" id="ctaBlock">
-          <p class="message" id="landingMsg">Click the 'Start' button to start the flipcard interactive.</p>
-          <p class="submessage" id="landingSub">You can flip cards by clicking them!</p>
+          <p class="message" id="landingMsg">${landingMsgText}</p>
+          <p class="submessage" id="landingSub">${landingSubText}</p>
           <button class="start-button" id="startBtn" type="button">Start</button>
         </div>
       </section>` : ''}
