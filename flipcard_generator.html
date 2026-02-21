@@ -57,6 +57,8 @@
     <select id="themeSelect">
       <option value="orange">Orange</option>
       <option value="blue">Blue</option>
+      <option value="gold">Gold</option>
+      <option value="maroon">Maroon</option>
     </select>
 
     <label for="cardCountSelect">Choose number of flipcards</label>
@@ -366,9 +368,13 @@
         cardsData.push({ front: frontText, back: backText });
       }
 
-      const themeColors = themeValue === "blue"
-        ? { text: "#00a3e0", buttonBorder: "#00a3e0", buttonBg: "#e6f6fc", cardBorder: "#00a3e0", cardBackBg: "#e6f6fc" }
-        : { text: "#ff7f32", buttonBorder: "#ff7f32", buttonBg: "#fff2eb", cardBorder: "#ff7f32", cardBackBg: "#fff2eb" };
+      const themeMap = {
+        orange: { text: "#ff7f32", buttonBorder: "#ff7f32", buttonBg: "#fff2eb", cardBorder: "#ff7f32", cardBackBg: "#fff2eb" },
+        blue:   { text: "#00a3e0", buttonBorder: "#00a3e0", buttonBg: "#e6f6fc", cardBorder: "#00a3e0", cardBackBg: "#e6f6fc" },
+        gold:   { text: "#FFC627", buttonBorder: "#FFC627", buttonBg: "#FFF9E9", cardBorder: "#FFC627", cardBackBg: "#FFF9E9" },
+        maroon: { text: "#8C1D40", buttonBorder: "#8C1D40", buttonBg: "#F4E8EC", cardBorder: "#8C1D40", cardBackBg: "#F4E8EC" }
+      };
+      const themeColors = themeMap[themeValue] || themeMap.orange;
 
       const generatedHtml = `<!DOCTYPE html>
 <html lang="en">
