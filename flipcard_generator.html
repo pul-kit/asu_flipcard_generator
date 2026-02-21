@@ -48,16 +48,48 @@
 <body>
   <div class="generator">
     <h1>Flipcard HTML Generator</h1>
-    <p class="hint">Upload an image to include on the generated flipcard landing page.</p>
+    <p class="hint">Optionally upload an image. If provided, the output will include a landing page with your image before the flipcards.</p>
 
     <label for="imageInput">Upload image</label>
     <input id="imageInput" type="file" accept="image/*" />
+    <div id="landingTextFields" style="display:none;margin-top:10px;padding:12px;border:1px solid #e2e8f0;border-radius:8px;background:#fbfdff;">
+      <p class="hint" style="margin:0 0 10px;">Customize the text shown on the landing page above the Start button.</p>
+      <div>
+        <label for="landingMessage" style="font-size:13px;font-weight:600;">Landing page message</label>
+        <input id="landingMessage" type="text" value="Click the 'Start' button to start the flipcard interactive." style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid #cbd5e1;font-size:14px;box-sizing:border-box;margin-top:4px;" />
+      </div>
+      <div style="margin-top:10px;">
+        <label for="landingSubmessage" style="font-size:13px;font-weight:600;">Landing page submessage</label>
+        <input id="landingSubmessage" type="text" value="You can flip cards by clicking them!" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid #cbd5e1;font-size:14px;box-sizing:border-box;margin-top:4px;" />
+      </div>
+    </div>
+
+    <label for="bgImageInput">Upload background image (optional)</label>
+    <p class="hint">Replaces the white background behind the flipcards. Shows on both the landing page and flipcard view.</p>
+    <input id="bgImageInput" type="file" accept="image/*" />
 
     <label for="themeSelect">Choose a theme</label>
     <select id="themeSelect">
       <option value="orange">Orange</option>
       <option value="blue">Blue</option>
+      <option value="gold">Gold</option>
+      <option value="maroon">Maroon</option>
+      <option value="custom">Choose</option>
     </select>
+    <div id="customColorPicker" style="display:none;margin-top:10px;padding:12px;border:1px solid #e2e8f0;border-radius:8px;background:#fbfdff;">
+      <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;">
+        <div>
+          <label for="darkerShade" style="font-size:13px;font-weight:600;">Darker Shade</label>
+          <p class="hint" style="margin:2px 0 6px;">Landing page text, button border, flipcard borders</p>
+          <input id="darkerShade" type="color" value="#ff7f32" />
+        </div>
+        <div>
+          <label for="lighterShade" style="font-size:13px;font-weight:600;">Lighter Shade</label>
+          <p class="hint" style="margin:2px 0 6px;">Start button fill, flipcard back background</p>
+          <input id="lighterShade" type="color" value="#fff2eb" />
+        </div>
+      </div>
+    </div>
 
     <label for="cardCountSelect">Choose number of flipcards</label>
     <select id="cardCountSelect">
@@ -69,11 +101,22 @@
       <option value="7">7 flipcards</option>
       <option value="8">8 flipcards</option>
     </select>
+    <div id="uniformSizeOption" style="display:none;margin-top:8px;">
+      <label style="display:inline;font-weight:normal;margin:0;">
+        <input id="uniformSizeCheck" type="checkbox" /> Do you want all cards to be the same size?
+      </label>
+    </div>
+
+    <div id="uniformFontOption" style="margin-top:12px;">
+      <label style="display:inline;font-weight:normal;margin:0;">
+        <input id="uniformFontCheck" type="checkbox" /> Keep font size same across cards
+      </label>
+    </div>
 
     <div id="cardTextFields"></div>
 
     <div class="actions" style="margin-top:16px;">
-      <button id="generateButton" disabled>Generate HTML</button>
+      <button id="generateButton">Generate HTML</button>
       <a id="downloadLink" class="download-link" href="#" download="flipcard.html" style="display:none;">Download HTML</a>
     </div>
   </div>
@@ -85,8 +128,19 @@
     const themeSelect = document.getElementById("themeSelect");
     const cardCountSelect = document.getElementById("cardCountSelect");
     const cardTextFields = document.getElementById("cardTextFields");
+    const uniformSizeOption = document.getElementById("uniformSizeOption");
+    const uniformSizeCheck = document.getElementById("uniformSizeCheck");
+    const uniformFontCheck = document.getElementById("uniformFontCheck");
+    const customColorPicker = document.getElementById("customColorPicker");
+    const darkerShadeInput = document.getElementById("darkerShade");
+    const lighterShadeInput = document.getElementById("lighterShade");
+    const bgImageInput = document.getElementById("bgImageInput");
+    const landingTextFields = document.getElementById("landingTextFields");
+    const landingMessageInput = document.getElementById("landingMessage");
+    const landingSubmessageInput = document.getElementById("landingSubmessage");
 
     let uploadedImageDataUrl = "";
+    let uploadedBgImageDataUrl = "";
 
     function escapeHtml(str){
       return String(str ?? "")
@@ -95,6 +149,10 @@
         .replace(/>/g,"&gt;")
         .replace(/"/g,"&quot;")
         .replace(/'/g,"&#39;");
+    }
+
+    function escapeForTemplate(str){
+      return escapeHtml(str).replace(/`/g,"&#96;").replace(/\$/g,"&#36;").replace(/\\/g,"&#92;");
     }
 
     // --- Live preview warnings (text auto-fit estimation) ---
@@ -159,7 +217,7 @@
       return [count];
     }
 
-    function estimateCardBox(cardCount, cardIndex){
+    function estimateCardBox(cardCount, cardIndex, useUniformSize){
       // Preview estimate assumes a typical 16:9 stage within 960x540,
       // but uses the same layout math (gaps/rows) as the generated page.
       const PAGE_W = 960, PAGE_H = 540;
@@ -174,6 +232,7 @@
       const stageH = innerH * 0.90;
 
       const plan = buildRowsForCount(cardCount);
+      const maxCols = useUniformSize ? Math.max(...plan) : 0;
       let idx = 0;
 
       for(let r=0; r<plan.length; r+=1){
@@ -182,7 +241,8 @@
 
         for(let c=0; c<cols; c+=1){
           if(idx === cardIndex){
-            const cardW = Math.floor((stageW - (GAP*(cols-1))) / cols);
+            const sizeCols = useUniformSize ? maxCols : cols;
+            const cardW = Math.floor((stageW - (GAP*(sizeCols-1))) / sizeCols);
             return { w: cardW, h: rowH };
           }
           idx += 1;
@@ -213,6 +273,7 @@
 
     function updateWarningsForAll(){
       const count = Number(cardCountSelect.value || 2);
+      const useUniform = (count === 5 || count === 7) && uniformSizeCheck.checked;
       for(let i=1;i<=count;i+=1){
         const frontEl = document.getElementById(`card${i}Front`);
         const backEl  = document.getElementById(`card${i}Back`);
@@ -220,7 +281,7 @@
         const backWarn  = document.getElementById(`card${i}BackWarn`);
         if(!frontEl || !backEl || !frontWarn || !backWarn) continue;
 
-        const box = estimateCardBox(count, i-1);
+        const box = estimateCardBox(count, i-1, useUniform);
         const MIN = 8;
 
         const baseMax = box.w * 0.14;
@@ -302,34 +363,66 @@
     cardTextFields.addEventListener('input', scheduleWarnings);
 
     cardCountSelect.addEventListener("change", () => {
+      const count = Number(cardCountSelect.value || 2);
+      if(count === 5 || count === 7){
+        uniformSizeOption.style.display = "";
+      } else {
+        uniformSizeOption.style.display = "none";
+        uniformSizeCheck.checked = false;
+      }
       renderCardTextInputs();
       downloadLink.style.display = "none";
       updateWarningsForAll();
     });
 
+    uniformSizeCheck.addEventListener("change", scheduleWarnings);
+
+    themeSelect.addEventListener("change", () => {
+      customColorPicker.style.display = (themeSelect.value === "custom") ? "" : "none";
+    });
+
     imageInput.addEventListener("change", (event) => {
       const file = event.target.files && event.target.files[0];
       if (!file) {
-        generateButton.disabled = true;
         downloadLink.style.display = "none";
         uploadedImageDataUrl = "";
+        landingTextFields.style.display = "none";
         return;
       }
 
       const reader = new FileReader();
       reader.addEventListener("load", () => {
         uploadedImageDataUrl = String(reader.result || "");
-        generateButton.disabled = !uploadedImageDataUrl;
+        downloadLink.style.display = "none";
+        landingTextFields.style.display = "";
+      });
+      reader.readAsDataURL(file);
+    });
+
+    bgImageInput.addEventListener("change", (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) {
+        downloadLink.style.display = "none";
+        uploadedBgImageDataUrl = "";
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.addEventListener("load", () => {
+        uploadedBgImageDataUrl = String(reader.result || "");
         downloadLink.style.display = "none";
       });
       reader.readAsDataURL(file);
     });
 
     generateButton.addEventListener("click", () => {
-      if (!uploadedImageDataUrl) return;
+      const hasImage = !!uploadedImageDataUrl;
+      const hasBgImage = !!uploadedBgImageDataUrl;
 
       const themeValue = themeSelect.value;
       const cardCount = Number(cardCountSelect.value || 2);
+      const uniformSize = (cardCount === 5 || cardCount === 7) && uniformSizeCheck.checked;
+      const uniformFont = uniformFontCheck.checked;
 
       const cardsData = [];
       for(let i=1;i<=cardCount;i+=1){
@@ -340,9 +433,28 @@
         cardsData.push({ front: frontText, back: backText });
       }
 
-      const themeColors = themeValue === "blue"
-        ? { text: "#00a3e0", buttonBorder: "#00a3e0", buttonBg: "#e6f6fc", cardBorder: "#00a3e0", cardBackBg: "#e6f6fc" }
-        : { text: "#ff7f32", buttonBorder: "#ff7f32", buttonBg: "#fff2eb", cardBorder: "#ff7f32", cardBackBg: "#fff2eb" };
+      const landingMsgText = escapeForTemplate(
+        landingMessageInput.value.trim() || "Click the 'Start' button to start the flipcard interactive."
+      );
+      const landingSubText = escapeForTemplate(
+        landingSubmessageInput.value.trim() || "You can flip cards by clicking them!"
+      );
+
+      const themeMap = {
+        orange: { text: "#ff7f32", buttonBorder: "#ff7f32", buttonBg: "#fff2eb", cardBorder: "#ff7f32", cardBackBg: "#fff2eb" },
+        blue:   { text: "#00a3e0", buttonBorder: "#00a3e0", buttonBg: "#e6f6fc", cardBorder: "#00a3e0", cardBackBg: "#e6f6fc" },
+        gold:   { text: "#FFC627", buttonBorder: "#FFC627", buttonBg: "#FFF9E9", cardBorder: "#FFC627", cardBackBg: "#FFF9E9" },
+        maroon: { text: "#8C1D40", buttonBorder: "#8C1D40", buttonBg: "#F4E8EC", cardBorder: "#8C1D40", cardBackBg: "#F4E8EC" }
+      };
+
+      let themeColors;
+      if (themeValue === "custom") {
+        const darker  = darkerShadeInput.value;
+        const lighter = lighterShadeInput.value;
+        themeColors = { text: darker, buttonBorder: darker, buttonBg: lighter, cardBorder: darker, cardBackBg: lighter };
+      } else {
+        themeColors = themeMap[themeValue] || themeMap.orange;
+      }
 
       const generatedHtml = `<!DOCTYPE html>
 <html lang="en">
@@ -363,7 +475,7 @@
       align-items:stretch;
       justify-content:stretch;
       overflow:auto;
-      background:#fff;
+      background:${hasBgImage ? 'transparent' : '#fff'};
     }
 
     .page{
@@ -373,23 +485,31 @@
       min-height:540px;
       box-sizing:border-box;
       position:relative;
-      overflow:visible;
+      overflow:visible;${hasBgImage ? `
+      background-image:url('${uploadedBgImageDataUrl}');
+      background-size:cover;
+      background-position:center center;
+      background-repeat:no-repeat;` : ''}
     }
 
-    .landing, .scene{
+    .scene{
       width:100%;
       height:100%;
       box-sizing:border-box;
     }
 
+    ${hasImage ? `
     .landing{
+      width:100%;
+      height:100%;
+      box-sizing:border-box;
       display:flex;
       flex-direction:column;
       align-items:center;
       justify-content:flex-start;
       gap:var(--landingGap, 14px);
       padding:22px 24px var(--landingPadBottom, 24px);
-      overflow:auto; /* allow scroll if zoom makes it tight */
+      overflow:auto;
     }
 
     .hero-slot{
@@ -443,17 +563,18 @@
 
     .start-button{
       margin-top:0;
-      padding:18px 42px; /* +50% */
-      font-size:27px;    /* +50% */
+      padding:18px 42px;
+      font-size:27px;
       border:2px solid ${themeColors.buttonBorder};
       border-radius:10px;
       background:${themeColors.buttonBg};
       color:${themeColors.text};
       cursor:pointer;
     }
+    ` : ''}
 
     .scene{
-      display:none;
+      display:${hasImage ? 'none' : 'flex'};
       align-items:center;
       justify-content:center;
       padding:18px;
@@ -514,16 +635,16 @@
 <body>
   <div class="viewport">
     <div class="page">
-      <section class="landing" id="landing">
+      ${hasImage ? `<section class="landing" id="landing">
         <div class="hero-slot">
           <img class="hero-image" src="${uploadedImageDataUrl}" alt="Uploaded image">
         </div>
         <div class="cta-block" id="ctaBlock">
-          <p class="message" id="landingMsg">Click the 'Start' button to start the flipcard interactive.</p>
-          <p class="submessage" id="landingSub">You can flip cards by clicking them!</p>
+          <p class="message" id="landingMsg">${landingMsgText}</p>
+          <p class="submessage" id="landingSub">${landingSubText}</p>
           <button class="start-button" id="startBtn" type="button">Start</button>
         </div>
-      </section>
+      </section>` : ''}
 
       <section class="scene" id="scene">
         <div class="cards-area" id="cardsArea"></div>
@@ -532,14 +653,15 @@
   </div>
 
   <script>
-    const startBtn = document.getElementById('startBtn');
-    const landing = document.getElementById('landing');
     const scene = document.getElementById('scene');
     const cardsArea = document.getElementById('cardsArea');
-
+    ${hasImage ? `
+    const startBtn = document.getElementById('startBtn');
+    const landing = document.getElementById('landing');
     const landingMsg = document.getElementById('landingMsg');
     const landingSub = document.getElementById('landingSub');
     const ctaBlock = document.getElementById('ctaBlock');
+    ` : ''}
 
     const cardsData = ${JSON.stringify(cardsData)};
 
@@ -641,13 +763,15 @@
       const rows = Array.from(cardsArea.querySelectorAll('.cards-row'));
       const twoRows = rows.length === 2;
       const rowH = twoRows ? Math.floor((stageH - GAP) / 2) : stageH;
+      const maxCols = Math.max(...rows.map(r => Number(r.dataset.cols || r.children.length || 1)));
 
       rows.forEach(r => {
         const cols = Number(r.dataset.cols || r.children.length || 1);
         r.style.height = rowH + "px";
         r.style.gap = GAP + "px";
 
-        const cardW = Math.floor((stageW - (GAP * (cols - 1))) / cols);
+        const sizeCols = ${uniformSize} ? maxCols : cols;
+        const cardW = Math.floor((stageW - (GAP * (sizeCols - 1))) / sizeCols);
         Array.from(r.children).forEach(cardEl => {
           cardEl.style.width = cardW + "px";
           cardEl.style.height = rowH + "px";
@@ -657,6 +781,8 @@
 
     function applyCardAutoFit(){
       const faces = document.querySelectorAll('.flipcard-face');
+      const results = [];
+
       faces.forEach(face => {
         const card = face.closest('.flipcard');
         if(!card) return;
@@ -664,19 +790,29 @@
         const cardWidth = card.clientWidth;
         let maxPx = cardWidth * 0.14;
 
-        if(face.classList.contains('flipcard-front')) maxPx *= 0.88;
+        const isFront = face.classList.contains('flipcard-front');
+        if(isFront) maxPx *= 0.88;
 
-        fitElementText(face, { maxPx: Math.round(maxPx), minPx: 8 });
+        const fit = fitElementText(face, { maxPx: Math.round(maxPx), minPx: 8 });
+        results.push({ face, isFront, sizePx: fit.sizePx });
       });
+
+      if(${uniformFont}){
+        const frontSizes = results.filter(r => r.isFront).map(r => r.sizePx);
+        const backSizes  = results.filter(r => !r.isFront).map(r => r.sizePx);
+        const minFront = frontSizes.length ? Math.min(...frontSizes) : 8;
+        const minBack  = backSizes.length  ? Math.min(...backSizes)  : 8;
+        results.forEach(r => {
+          r.face.style.fontSize = (r.isFront ? minFront : minBack) + "px";
+        });
+      }
     }
 
+    ${hasImage ? `
     function syncLandingLayout(){
-      // Image should take at most 60% of landing height
       const landingH = landing.clientHeight || 540;
       landing.style.setProperty('--heroH', Math.floor(landingH * 0.60) + "px");
 
-      // Align bottom of Start button with the bottom of the lowest flipcard row.
-      // In the scene, the cards stage is vertically centered, so the bottom inset is (sceneH - stageH) / 2.
       const PAD = 18;
       const sceneH = scene.clientHeight || landingH;
       const innerH = Math.max(240, sceneH - (PAD * 2));
@@ -686,11 +822,10 @@
     }
 
     function fitLandingText(){
-      // Force single-line; shrink as needed to fit the target widths (90% / 55%).
       const msgW = Math.max(240, landingMsg.clientWidth);
       const subW = Math.max(200, landingSub.clientWidth);
 
-      let msgMax = Math.round(msgW * 0.13);   // scales with width
+      let msgMax = Math.round(msgW * 0.13);
       let subMax = Math.round(subW * 0.18);
 
       msgMax = Math.min(msgMax, 96);
@@ -700,6 +835,10 @@
       fitElementText(landingMsg, { maxPx: msgMax, minPx: 12 });
       fitElementText(landingSub, { maxPx: subMax, minPx: 10 });
     }
+    ` : `
+    function syncLandingLayout(){}
+    function fitLandingText(){}
+    `}
 
     // Zoom/viewport changes don't always trigger window.resize. Cover the common cases.
     function watchViewportChanges(fn){
@@ -739,12 +878,13 @@
     relayoutAll();
     watchViewportChanges(relayoutAll);
 
+    ${hasImage ? `
     startBtn.addEventListener('click', () => {
       landing.style.display = 'none';
       scene.style.display = 'flex';
-      // Now that scene is visible, finalize layout/text fit
       relayoutAll();
     });
+    ` : ''}
   <\/script>
 </body>
 </html>`;

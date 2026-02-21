@@ -12,13 +12,14 @@ There is no build system, no dependencies, no package manager, and no test suite
 
 The generator has a two-stage architecture:
 
-1. **Generator UI** (`flipcard_generator.html`) — A form where users upload a hero image, pick a theme (orange/blue), choose card count (2–8), and enter front/back text for each card.
-2. **Generated output** — When the user clicks "Generate HTML", the script constructs a complete HTML document as a template literal string (starting ~line 347), injects the card data and base64-encoded image, and offers it as a blob download.
+1. **Generator UI** (`flipcard_generator.html`) — A form where users optionally upload a hero image, pick a theme (orange/blue), choose card count (2–8), and enter front/back text for each card.
+2. **Generated output** — When the user clicks "Generate HTML", the script constructs a complete HTML document as a template literal string (starting ~line 345), injects the card data (and base64-encoded image if provided), and offers it as a blob download. If no image is uploaded, the generated HTML skips the landing page and shows flipcards immediately.
 
 The generated flipcard HTML is entirely self-contained (no external assets) so it works when embedded in Canvas or other LMS platforms.
 
 ## Key Architecture Details
 
+- **Optional landing page**: Controlled by `hasImage` flag at generation time. When no image is uploaded, all landing-related CSS, HTML, and JS (including `syncLandingLayout`/`fitLandingText`) are excluded from the generated output, with no-op stubs provided so `relayoutAll()` works unconditionally.
 - **Text auto-fit system**: Both the generator (preview warnings) and generated output include font-size shrinking logic. The generator uses `fitTextToBox()` (~line 105) to warn users if text will overflow. The generated output uses `fitElementText()` for runtime fitting.
 - **Card layout**: `buildRowsForCount()` maps card counts to row configurations (e.g., 5 cards → rows of [2, 3]; 8 cards → [4, 4]). This function is duplicated in both the generator and the generated output.
 - **Theme colors**: Defined in `themeColors` object (~line 343). Currently two themes: orange and blue.
