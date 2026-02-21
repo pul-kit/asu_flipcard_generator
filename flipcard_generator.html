@@ -48,7 +48,7 @@
 <body>
   <div class="generator">
     <h1>Flipcard HTML Generator</h1>
-    <p class="hint">Upload an image to include on the generated flipcard landing page.</p>
+    <p class="hint">Optionally upload an image. If provided, the output will include a landing page with your image before the flipcards.</p>
 
     <label for="imageInput">Upload image</label>
     <input id="imageInput" type="file" accept="image/*" />
@@ -73,7 +73,7 @@
     <div id="cardTextFields"></div>
 
     <div class="actions" style="margin-top:16px;">
-      <button id="generateButton" disabled>Generate HTML</button>
+      <button id="generateButton">Generate HTML</button>
       <a id="downloadLink" class="download-link" href="#" download="flipcard.html" style="display:none;">Download HTML</a>
     </div>
   </div>
@@ -310,7 +310,6 @@
     imageInput.addEventListener("change", (event) => {
       const file = event.target.files && event.target.files[0];
       if (!file) {
-        generateButton.disabled = true;
         downloadLink.style.display = "none";
         uploadedImageDataUrl = "";
         return;
@@ -319,14 +318,13 @@
       const reader = new FileReader();
       reader.addEventListener("load", () => {
         uploadedImageDataUrl = String(reader.result || "");
-        generateButton.disabled = !uploadedImageDataUrl;
         downloadLink.style.display = "none";
       });
       reader.readAsDataURL(file);
     });
 
     generateButton.addEventListener("click", () => {
-      if (!uploadedImageDataUrl) return;
+      const hasImage = !!uploadedImageDataUrl;
 
       const themeValue = themeSelect.value;
       const cardCount = Number(cardCountSelect.value || 2);
@@ -376,20 +374,24 @@
       overflow:visible;
     }
 
-    .landing, .scene{
+    .scene{
       width:100%;
       height:100%;
       box-sizing:border-box;
     }
 
+    ${hasImage ? `
     .landing{
+      width:100%;
+      height:100%;
+      box-sizing:border-box;
       display:flex;
       flex-direction:column;
       align-items:center;
       justify-content:flex-start;
       gap:var(--landingGap, 14px);
       padding:22px 24px var(--landingPadBottom, 24px);
-      overflow:auto; /* allow scroll if zoom makes it tight */
+      overflow:auto;
     }
 
     .hero-slot{
@@ -443,17 +445,18 @@
 
     .start-button{
       margin-top:0;
-      padding:18px 42px; /* +50% */
-      font-size:27px;    /* +50% */
+      padding:18px 42px;
+      font-size:27px;
       border:2px solid ${themeColors.buttonBorder};
       border-radius:10px;
       background:${themeColors.buttonBg};
       color:${themeColors.text};
       cursor:pointer;
     }
+    ` : ''}
 
     .scene{
-      display:none;
+      display:${hasImage ? 'none' : 'flex'};
       align-items:center;
       justify-content:center;
       padding:18px;
@@ -514,7 +517,7 @@
 <body>
   <div class="viewport">
     <div class="page">
-      <section class="landing" id="landing">
+      ${hasImage ? `<section class="landing" id="landing">
         <div class="hero-slot">
           <img class="hero-image" src="${uploadedImageDataUrl}" alt="Uploaded image">
         </div>
@@ -523,7 +526,7 @@
           <p class="submessage" id="landingSub">You can flip cards by clicking them!</p>
           <button class="start-button" id="startBtn" type="button">Start</button>
         </div>
-      </section>
+      </section>` : ''}
 
       <section class="scene" id="scene">
         <div class="cards-area" id="cardsArea"></div>
@@ -532,14 +535,15 @@
   </div>
 
   <script>
-    const startBtn = document.getElementById('startBtn');
-    const landing = document.getElementById('landing');
     const scene = document.getElementById('scene');
     const cardsArea = document.getElementById('cardsArea');
-
+    ${hasImage ? `
+    const startBtn = document.getElementById('startBtn');
+    const landing = document.getElementById('landing');
     const landingMsg = document.getElementById('landingMsg');
     const landingSub = document.getElementById('landingSub');
     const ctaBlock = document.getElementById('ctaBlock');
+    ` : ''}
 
     const cardsData = ${JSON.stringify(cardsData)};
 
@@ -670,13 +674,11 @@
       });
     }
 
+    ${hasImage ? `
     function syncLandingLayout(){
-      // Image should take at most 60% of landing height
       const landingH = landing.clientHeight || 540;
       landing.style.setProperty('--heroH', Math.floor(landingH * 0.60) + "px");
 
-      // Align bottom of Start button with the bottom of the lowest flipcard row.
-      // In the scene, the cards stage is vertically centered, so the bottom inset is (sceneH - stageH) / 2.
       const PAD = 18;
       const sceneH = scene.clientHeight || landingH;
       const innerH = Math.max(240, sceneH - (PAD * 2));
@@ -686,11 +688,10 @@
     }
 
     function fitLandingText(){
-      // Force single-line; shrink as needed to fit the target widths (90% / 55%).
       const msgW = Math.max(240, landingMsg.clientWidth);
       const subW = Math.max(200, landingSub.clientWidth);
 
-      let msgMax = Math.round(msgW * 0.13);   // scales with width
+      let msgMax = Math.round(msgW * 0.13);
       let subMax = Math.round(subW * 0.18);
 
       msgMax = Math.min(msgMax, 96);
@@ -700,6 +701,10 @@
       fitElementText(landingMsg, { maxPx: msgMax, minPx: 12 });
       fitElementText(landingSub, { maxPx: subMax, minPx: 10 });
     }
+    ` : `
+    function syncLandingLayout(){}
+    function fitLandingText(){}
+    `}
 
     // Zoom/viewport changes don't always trigger window.resize. Cover the common cases.
     function watchViewportChanges(fn){
@@ -739,12 +744,13 @@
     relayoutAll();
     watchViewportChanges(relayoutAll);
 
+    ${hasImage ? `
     startBtn.addEventListener('click', () => {
       landing.style.display = 'none';
       scene.style.display = 'flex';
-      // Now that scene is visible, finalize layout/text fit
       relayoutAll();
     });
+    ` : ''}
   <\/script>
 </body>
 </html>`;
