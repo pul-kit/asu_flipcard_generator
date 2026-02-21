@@ -69,6 +69,11 @@
       <option value="7">7 flipcards</option>
       <option value="8">8 flipcards</option>
     </select>
+    <div id="uniformSizeOption" style="display:none;margin-top:8px;">
+      <label style="display:inline;font-weight:normal;margin:0;">
+        <input id="uniformSizeCheck" type="checkbox" /> Do you want all cards to be the same size?
+      </label>
+    </div>
 
     <div id="cardTextFields"></div>
 
@@ -85,6 +90,8 @@
     const themeSelect = document.getElementById("themeSelect");
     const cardCountSelect = document.getElementById("cardCountSelect");
     const cardTextFields = document.getElementById("cardTextFields");
+    const uniformSizeOption = document.getElementById("uniformSizeOption");
+    const uniformSizeCheck = document.getElementById("uniformSizeCheck");
 
     let uploadedImageDataUrl = "";
 
@@ -159,7 +166,7 @@
       return [count];
     }
 
-    function estimateCardBox(cardCount, cardIndex){
+    function estimateCardBox(cardCount, cardIndex, useUniformSize){
       // Preview estimate assumes a typical 16:9 stage within 960x540,
       // but uses the same layout math (gaps/rows) as the generated page.
       const PAGE_W = 960, PAGE_H = 540;
@@ -174,6 +181,7 @@
       const stageH = innerH * 0.90;
 
       const plan = buildRowsForCount(cardCount);
+      const maxCols = useUniformSize ? Math.max(...plan) : 0;
       let idx = 0;
 
       for(let r=0; r<plan.length; r+=1){
@@ -182,7 +190,8 @@
 
         for(let c=0; c<cols; c+=1){
           if(idx === cardIndex){
-            const cardW = Math.floor((stageW - (GAP*(cols-1))) / cols);
+            const sizeCols = useUniformSize ? maxCols : cols;
+            const cardW = Math.floor((stageW - (GAP*(sizeCols-1))) / sizeCols);
             return { w: cardW, h: rowH };
           }
           idx += 1;
@@ -213,6 +222,7 @@
 
     function updateWarningsForAll(){
       const count = Number(cardCountSelect.value || 2);
+      const useUniform = (count === 5 || count === 7) && uniformSizeCheck.checked;
       for(let i=1;i<=count;i+=1){
         const frontEl = document.getElementById(`card${i}Front`);
         const backEl  = document.getElementById(`card${i}Back`);
@@ -220,7 +230,7 @@
         const backWarn  = document.getElementById(`card${i}BackWarn`);
         if(!frontEl || !backEl || !frontWarn || !backWarn) continue;
 
-        const box = estimateCardBox(count, i-1);
+        const box = estimateCardBox(count, i-1, useUniform);
         const MIN = 8;
 
         const baseMax = box.w * 0.14;
@@ -302,10 +312,19 @@
     cardTextFields.addEventListener('input', scheduleWarnings);
 
     cardCountSelect.addEventListener("change", () => {
+      const count = Number(cardCountSelect.value || 2);
+      if(count === 5 || count === 7){
+        uniformSizeOption.style.display = "";
+      } else {
+        uniformSizeOption.style.display = "none";
+        uniformSizeCheck.checked = false;
+      }
       renderCardTextInputs();
       downloadLink.style.display = "none";
       updateWarningsForAll();
     });
+
+    uniformSizeCheck.addEventListener("change", scheduleWarnings);
 
     imageInput.addEventListener("change", (event) => {
       const file = event.target.files && event.target.files[0];
@@ -328,6 +347,7 @@
 
       const themeValue = themeSelect.value;
       const cardCount = Number(cardCountSelect.value || 2);
+      const uniformSize = (cardCount === 5 || cardCount === 7) && uniformSizeCheck.checked;
 
       const cardsData = [];
       for(let i=1;i<=cardCount;i+=1){
@@ -645,13 +665,15 @@
       const rows = Array.from(cardsArea.querySelectorAll('.cards-row'));
       const twoRows = rows.length === 2;
       const rowH = twoRows ? Math.floor((stageH - GAP) / 2) : stageH;
+      const maxCols = Math.max(...rows.map(r => Number(r.dataset.cols || r.children.length || 1)));
 
       rows.forEach(r => {
         const cols = Number(r.dataset.cols || r.children.length || 1);
         r.style.height = rowH + "px";
         r.style.gap = GAP + "px";
 
-        const cardW = Math.floor((stageW - (GAP * (cols - 1))) / cols);
+        const sizeCols = ${uniformSize} ? maxCols : cols;
+        const cardW = Math.floor((stageW - (GAP * (sizeCols - 1))) / sizeCols);
         Array.from(r.children).forEach(cardEl => {
           cardEl.style.width = cardW + "px";
           cardEl.style.height = rowH + "px";
