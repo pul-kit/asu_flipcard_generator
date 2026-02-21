@@ -59,7 +59,22 @@
       <option value="blue">Blue</option>
       <option value="gold">Gold</option>
       <option value="maroon">Maroon</option>
+      <option value="custom">Choose</option>
     </select>
+    <div id="customColorPicker" style="display:none;margin-top:10px;padding:12px;border:1px solid #e2e8f0;border-radius:8px;background:#fbfdff;">
+      <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap;">
+        <div>
+          <label for="darkerShade" style="font-size:13px;font-weight:600;">Darker Shade</label>
+          <p class="hint" style="margin:2px 0 6px;">Landing page text, button border, flipcard borders</p>
+          <input id="darkerShade" type="color" value="#ff7f32" />
+        </div>
+        <div>
+          <label for="lighterShade" style="font-size:13px;font-weight:600;">Lighter Shade</label>
+          <p class="hint" style="margin:2px 0 6px;">Start button fill, flipcard back background</p>
+          <input id="lighterShade" type="color" value="#fff2eb" />
+        </div>
+      </div>
+    </div>
 
     <label for="cardCountSelect">Choose number of flipcards</label>
     <select id="cardCountSelect">
@@ -101,6 +116,9 @@
     const uniformSizeOption = document.getElementById("uniformSizeOption");
     const uniformSizeCheck = document.getElementById("uniformSizeCheck");
     const uniformFontCheck = document.getElementById("uniformFontCheck");
+    const customColorPicker = document.getElementById("customColorPicker");
+    const darkerShadeInput = document.getElementById("darkerShade");
+    const lighterShadeInput = document.getElementById("lighterShade");
 
     let uploadedImageDataUrl = "";
 
@@ -335,6 +353,10 @@
 
     uniformSizeCheck.addEventListener("change", scheduleWarnings);
 
+    themeSelect.addEventListener("change", () => {
+      customColorPicker.style.display = (themeSelect.value === "custom") ? "" : "none";
+    });
+
     imageInput.addEventListener("change", (event) => {
       const file = event.target.files && event.target.files[0];
       if (!file) {
@@ -374,7 +396,15 @@
         gold:   { text: "#FFC627", buttonBorder: "#FFC627", buttonBg: "#FFF9E9", cardBorder: "#FFC627", cardBackBg: "#FFF9E9" },
         maroon: { text: "#8C1D40", buttonBorder: "#8C1D40", buttonBg: "#F4E8EC", cardBorder: "#8C1D40", cardBackBg: "#F4E8EC" }
       };
-      const themeColors = themeMap[themeValue] || themeMap.orange;
+
+      let themeColors;
+      if (themeValue === "custom") {
+        const darker  = darkerShadeInput.value;
+        const lighter = lighterShadeInput.value;
+        themeColors = { text: darker, buttonBorder: darker, buttonBg: lighter, cardBorder: darker, cardBackBg: lighter };
+      } else {
+        themeColors = themeMap[themeValue] || themeMap.orange;
+      }
 
       const generatedHtml = `<!DOCTYPE html>
 <html lang="en">
