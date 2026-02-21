@@ -53,6 +53,10 @@
     <label for="imageInput">Upload image</label>
     <input id="imageInput" type="file" accept="image/*" />
 
+    <label for="bgImageInput">Upload background image (optional)</label>
+    <p class="hint">Replaces the white background behind the flipcards. Shows on both the landing page and flipcard view.</p>
+    <input id="bgImageInput" type="file" accept="image/*" />
+
     <label for="themeSelect">Choose a theme</label>
     <select id="themeSelect">
       <option value="orange">Orange</option>
@@ -119,8 +123,10 @@
     const customColorPicker = document.getElementById("customColorPicker");
     const darkerShadeInput = document.getElementById("darkerShade");
     const lighterShadeInput = document.getElementById("lighterShade");
+    const bgImageInput = document.getElementById("bgImageInput");
 
     let uploadedImageDataUrl = "";
+    let uploadedBgImageDataUrl = "";
 
     function escapeHtml(str){
       return String(str ?? "")
@@ -373,8 +379,25 @@
       reader.readAsDataURL(file);
     });
 
+    bgImageInput.addEventListener("change", (event) => {
+      const file = event.target.files && event.target.files[0];
+      if (!file) {
+        downloadLink.style.display = "none";
+        uploadedBgImageDataUrl = "";
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.addEventListener("load", () => {
+        uploadedBgImageDataUrl = String(reader.result || "");
+        downloadLink.style.display = "none";
+      });
+      reader.readAsDataURL(file);
+    });
+
     generateButton.addEventListener("click", () => {
       const hasImage = !!uploadedImageDataUrl;
+      const hasBgImage = !!uploadedBgImageDataUrl;
 
       const themeValue = themeSelect.value;
       const cardCount = Number(cardCountSelect.value || 2);
@@ -425,7 +448,7 @@
       align-items:stretch;
       justify-content:stretch;
       overflow:auto;
-      background:#fff;
+      background:${hasBgImage ? 'transparent' : '#fff'};
     }
 
     .page{
@@ -435,7 +458,11 @@
       min-height:540px;
       box-sizing:border-box;
       position:relative;
-      overflow:visible;
+      overflow:visible;${hasBgImage ? `
+      background-image:url('${uploadedBgImageDataUrl}');
+      background-size:cover;
+      background-position:center center;
+      background-repeat:no-repeat;` : ''}
     }
 
     .scene{
