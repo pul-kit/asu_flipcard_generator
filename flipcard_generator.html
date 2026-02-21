@@ -75,6 +75,12 @@
       </label>
     </div>
 
+    <div id="uniformFontOption" style="margin-top:12px;">
+      <label style="display:inline;font-weight:normal;margin:0;">
+        <input id="uniformFontCheck" type="checkbox" /> Keep font size same across cards
+      </label>
+    </div>
+
     <div id="cardTextFields"></div>
 
     <div class="actions" style="margin-top:16px;">
@@ -92,6 +98,7 @@
     const cardTextFields = document.getElementById("cardTextFields");
     const uniformSizeOption = document.getElementById("uniformSizeOption");
     const uniformSizeCheck = document.getElementById("uniformSizeCheck");
+    const uniformFontCheck = document.getElementById("uniformFontCheck");
 
     let uploadedImageDataUrl = "";
 
@@ -348,6 +355,7 @@
       const themeValue = themeSelect.value;
       const cardCount = Number(cardCountSelect.value || 2);
       const uniformSize = (cardCount === 5 || cardCount === 7) && uniformSizeCheck.checked;
+      const uniformFont = uniformFontCheck.checked;
 
       const cardsData = [];
       for(let i=1;i<=cardCount;i+=1){
@@ -683,6 +691,8 @@
 
     function applyCardAutoFit(){
       const faces = document.querySelectorAll('.flipcard-face');
+      const results = [];
+
       faces.forEach(face => {
         const card = face.closest('.flipcard');
         if(!card) return;
@@ -690,10 +700,22 @@
         const cardWidth = card.clientWidth;
         let maxPx = cardWidth * 0.14;
 
-        if(face.classList.contains('flipcard-front')) maxPx *= 0.88;
+        const isFront = face.classList.contains('flipcard-front');
+        if(isFront) maxPx *= 0.88;
 
-        fitElementText(face, { maxPx: Math.round(maxPx), minPx: 8 });
+        const fit = fitElementText(face, { maxPx: Math.round(maxPx), minPx: 8 });
+        results.push({ face, isFront, sizePx: fit.sizePx });
       });
+
+      if(${uniformFont}){
+        const frontSizes = results.filter(r => r.isFront).map(r => r.sizePx);
+        const backSizes  = results.filter(r => !r.isFront).map(r => r.sizePx);
+        const minFront = frontSizes.length ? Math.min(...frontSizes) : 8;
+        const minBack  = backSizes.length  ? Math.min(...backSizes)  : 8;
+        results.forEach(r => {
+          r.face.style.fontSize = (r.isFront ? minFront : minBack) + "px";
+        });
+      }
     }
 
     ${hasImage ? `
