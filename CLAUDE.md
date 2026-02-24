@@ -32,4 +32,4 @@ To work on this project, simply open `flipcard_generator.html` in a browser. No 
 
 ## Planned Iterations
 
-See `iterations.md` for ideas: additional themes (maroon/gold), user-customizable colors, editable landing page text, optional landing page, default graphics, character limits, and uniform card sizing.
+Hyperlinks within flipcard text.
