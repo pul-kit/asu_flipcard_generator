@@ -55,6 +55,10 @@
     <div id="landingTextFields" style="display:none;margin-top:10px;padding:12px;border:1px solid #e2e8f0;border-radius:8px;background:#fbfdff;">
       <p class="hint" style="margin:0 0 10px;">Customize the text shown on the landing page above the Start button.</p>
       <div>
+        <label for="landingAlt" style="font-size:13px;font-weight:600;">Landing image alt text</label>
+        <input id="landingAlt" type="text" placeholder="Describe the image" style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid #cbd5e1;font-size:14px;box-sizing:border-box;margin-top:4px;" />
+      </div>
+      <div>
         <label for="landingMessage" style="font-size:13px;font-weight:600;">Landing page message</label>
         <input id="landingMessage" type="text" value="Click the 'Start' button to start the flipcard interactive." style="width:100%;padding:8px 10px;border-radius:6px;border:1px solid #cbd5e1;font-size:14px;box-sizing:border-box;margin-top:4px;" />
       </div>
@@ -136,6 +140,7 @@
     const lighterShadeInput = document.getElementById("lighterShade");
     const bgImageInput = document.getElementById("bgImageInput");
     const landingTextFields = document.getElementById("landingTextFields");
+    const landingAltInput = document.getElementById("landingAlt");
     const landingMessageInput = document.getElementById("landingMessage");
     const landingSubmessageInput = document.getElementById("landingSubmessage");
 
@@ -204,6 +209,10 @@
 
       document.body.removeChild(host);
       return { sizePx: size, overflow };
+    }
+
+    function stripMarkdownLinks(text){
+      return String(text ?? "").replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, "$1");
     }
 
     function buildRowsForCount(count){
@@ -288,8 +297,8 @@
         const frontMax = Math.round(baseMax * 0.88);
         const backMax  = Math.round(baseMax);
 
-        const frontFit = fitTextToBox(frontEl.value, box.w, box.h, {minPx: MIN, maxPx: frontMax, fontWeight: 700, wordBreak: "normal", overflowWrap: "normal", hyphens: "none"});
-        const backFit  = fitTextToBox(backEl.value,  box.w, box.h, {minPx: MIN, maxPx: backMax,  fontWeight: 400, wordBreak: "break-word", overflowWrap: "break-word", hyphens: "manual"});
+        const frontFit = fitTextToBox(stripMarkdownLinks(frontEl.value), box.w, box.h, {minPx: MIN, maxPx: frontMax, fontWeight: 700, wordBreak: "normal", overflowWrap: "normal", hyphens: "none"});
+        const backFit  = fitTextToBox(stripMarkdownLinks(backEl.value),  box.w, box.h, {minPx: MIN, maxPx: backMax,  fontWeight: 400, wordBreak: "break-word", overflowWrap: "break-word", hyphens: "manual"});
 
         applyWarn(frontWarn, frontFit, frontMax);
         applyWarn(backWarn,  backFit,  backMax);
@@ -387,6 +396,7 @@
         downloadLink.style.display = "none";
         uploadedImageDataUrl = "";
         landingTextFields.style.display = "none";
+        landingAltInput.value = "";
         return;
       }
 
@@ -438,6 +448,9 @@
       );
       const landingSubText = escapeForTemplate(
         landingSubmessageInput.value.trim() || "You can flip cards by clicking them!"
+      );
+      const landingAltText = escapeForTemplate(
+        landingAltInput.value.trim() || "Landing image"
       );
 
       const themeMap = {
@@ -630,6 +643,11 @@
 
     .flipcard-front{ font-weight:700; }
     .flipcard-back{ transform:rotateY(180deg); background:${themeColors.cardBackBg}; font-weight:400; }
+    .flipcard-face a{
+      color:inherit;
+      text-decoration:underline;
+      cursor:pointer;
+    }
   </style>
 </head>
 <body>
@@ -637,7 +655,7 @@
     <div class="page">
       ${hasImage ? `<section class="landing" id="landing">
         <div class="hero-slot">
-          <img class="hero-image" src="${uploadedImageDataUrl}" alt="Uploaded image">
+          <img class="hero-image" src="${uploadedImageDataUrl}" alt="${landingAltText}">
         </div>
         <div class="cta-block" id="ctaBlock">
           <p class="message" id="landingMsg">${landingMsgText}</p>
@@ -674,6 +692,45 @@
         .replace(/'/g,"&#39;");
     }
 
+    function escapeAttr(str){
+      return String(str ?? "")
+        .replace(/&/g,"&amp;")
+        .replace(/"/g,"&quot;")
+        .replace(/</g,"&lt;")
+        .replace(/>/g,"&gt;");
+    }
+
+    function sanitizeUrl(url){
+      const trimmed = String(url ?? "").trim();
+      if(/^https?:\\/\\//i.test(trimmed)) return trimmed;
+      if(/^mailto:/i.test(trimmed)) return trimmed;
+      return "";
+    }
+
+    function formatCardText(raw){
+      const text = String(raw ?? "");
+      const pattern = /\\[([^\\]]+)\\]\\(([^)\\s]+)\\)/g;
+      let lastIndex = 0;
+      let out = "";
+      let match;
+
+      while((match = pattern.exec(text)) !== null){
+        const [full, label, url] = match;
+        out += escapeHtml(text.slice(lastIndex, match.index));
+
+        const safeUrl = sanitizeUrl(url);
+        if(safeUrl){
+          out += '<a href="' + escapeAttr(safeUrl) + '" target="_blank" rel="noopener noreferrer">' + escapeHtml(label) + '</a>';
+        } else {
+          out += escapeHtml(full);
+        }
+        lastIndex = match.index + full.length;
+      }
+
+      out += escapeHtml(text.slice(lastIndex));
+      return out;
+    }
+
     function createFlipcard(frontText, backText){
       const card = document.createElement('div');
       card.className = 'flipcard';
@@ -683,17 +740,20 @@
 
       const front = document.createElement('div');
       front.className = 'flipcard-face flipcard-front';
-      front.innerHTML = escapeHtml(frontText);
+      front.innerHTML = formatCardText(frontText);
 
       const back = document.createElement('div');
       back.className = 'flipcard-face flipcard-back';
-      back.innerHTML = escapeHtml(backText);
+      back.innerHTML = formatCardText(backText);
 
       inner.appendChild(front);
       inner.appendChild(back);
       card.appendChild(inner);
 
-      card.addEventListener('click', () => card.classList.toggle('flipped'));
+      card.addEventListener('click', (event) => {
+        if(event.target && event.target.closest && event.target.closest('a')) return;
+        card.classList.toggle('flipped');
+      });
       return card;
     }
 

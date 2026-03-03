@@ -32,5 +32,6 @@ To work on this project, simply open `flipcard_generator.html` in a browser. No 
 
 ## Planned Iterations
 
-Hyperlinks within flipcard text.
-Alt Text for image uploaded on landing page.
+Completed:
+- Hyperlinks within flipcard text.
+- Alt text for image uploaded on landing page.
