@@ -623,6 +623,7 @@
     }
 
     .flipcard.flipped .flipcard-inner{ transform:rotateY(180deg); }
+    .flipcard:focus-visible{ outline:3px solid ${themeColors.cardBorder}; outline-offset:4px; }
 
     .flipcard-face{
       position:absolute; inset:0;
@@ -731,9 +732,19 @@
       return out;
     }
 
+    function toggleCard(card){
+      if(!card) return;
+      card.classList.toggle('flipped');
+      const isPressed = card.classList.contains('flipped');
+      card.setAttribute('aria-pressed', isPressed ? 'true' : 'false');
+    }
+
     function createFlipcard(frontText, backText){
       const card = document.createElement('div');
       card.className = 'flipcard';
+      card.setAttribute('role', 'button');
+      card.setAttribute('tabindex', '0');
+      card.setAttribute('aria-pressed', 'false');
 
       const inner = document.createElement('div');
       inner.className = 'flipcard-inner';
@@ -752,7 +763,17 @@
 
       card.addEventListener('click', (event) => {
         if(event.target && event.target.closest && event.target.closest('a')) return;
-        card.classList.toggle('flipped');
+        toggleCard(card);
+      });
+
+      card.addEventListener('keydown', (event) => {
+        if(event.target && event.target.closest && event.target.closest('a')) return;
+        if(event.key === 'Enter'){
+          toggleCard(card);
+        } else if(event.key === ' ' || event.key === 'Spacebar'){
+          event.preventDefault();
+          toggleCard(card);
+        }
       });
       return card;
     }
@@ -943,6 +964,10 @@
       landing.style.display = 'none';
       scene.style.display = 'flex';
       relayoutAll();
+      requestAnimationFrame(() => {
+        const firstCard = cardsArea.querySelector('.flipcard');
+        if(firstCard) firstCard.focus();
+      });
     });
     ` : ''}
   <\/script>
