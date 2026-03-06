@@ -476,28 +476,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Flipcard Interactive</title>
   <style>
-    html, body { margin:0; padding:0; width:100%; height:100%; background:#fff; font-family:Arial,sans-serif; }
+    html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; background:#fff; font-family:Arial,sans-serif; }
 
-    /* Key behavior:
-       - No transform scaling (so browser zoom yields scrollbars instead of re-scaling everything to fit).
-       - The interactive itself fills the available embed area at 100% zoom. */
+    /* Embed behavior:
+       - Keep a fixed 16:9 design stage so card geometry/text proportions stay stable.
+       - Scale that stage uniformly to fit the available embed box. */
     .viewport{
+      position:relative;
       width:100%;
       height:100%;
-      display:flex;
-      align-items:stretch;
-      justify-content:stretch;
-      overflow:auto;
+      overflow:hidden;
       background:${hasBgImage ? 'transparent' : '#fff'};
     }
 
     .page{
-      width:100%;
-      height:100%;
-      min-width:960px;   /* keep a sane minimum design size */
-      min-height:540px;
+      width:960px;
+      height:540px;
       box-sizing:border-box;
-      position:relative;
+      position:absolute;
+      left:0;
+      top:0;
+      transform-origin:top left;
       overflow:visible;${hasBgImage ? `
       background-image:url('${uploadedBgImageDataUrl}');
       background-size:cover;
@@ -672,6 +671,8 @@
   </div>
 
   <script>
+    const viewport = document.querySelector('.viewport');
+    const page = document.querySelector('.page');
     const scene = document.getElementById('scene');
     const cardsArea = document.getElementById('cardsArea');
     ${hasImage ? `
@@ -683,6 +684,8 @@
     ` : ''}
 
     const cardsData = ${JSON.stringify(cardsData)};
+    const DESIGN_W = 960;
+    const DESIGN_H = 540;
 
     function escapeHtml(str){
       return String(str ?? "")
@@ -860,6 +863,17 @@
       });
     }
 
+    function scalePageToViewport(){
+      const viewportW = Math.max(1, viewport.clientWidth || 0);
+      const viewportH = Math.max(1, viewport.clientHeight || 0);
+      const scale = Math.min(viewportW / DESIGN_W, viewportH / DESIGN_H);
+      const safeScale = (Number.isFinite(scale) && scale > 0) ? scale : 1;
+
+      page.style.left = ((viewportW - (DESIGN_W * safeScale)) / 2) + "px";
+      page.style.top = ((viewportH - (DESIGN_H * safeScale)) / 2) + "px";
+      page.style.transform = "scale(" + safeScale + ")";
+    }
+
     function applyCardAutoFit(){
       const faces = document.querySelectorAll('.flipcard-face');
       const results = [];
@@ -953,11 +967,12 @@
       // but we can still compute without harm.
       layoutCards();
       applyCardAutoFit();
+      scalePageToViewport();
     }
 
     // Initial fit
     relayoutAll();
-    watchViewportChanges(relayoutAll);
+    watchViewportChanges(scalePageToViewport);
 
     ${hasImage ? `
     startBtn.addEventListener('click', () => {
