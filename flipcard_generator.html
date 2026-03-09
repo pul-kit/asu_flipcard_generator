@@ -29,8 +29,12 @@
     .card-editor{margin-top:14px;border:1px solid #e2e8f0;border-radius:10px;padding:14px;background:#fbfdff;}
     .card-editor h3{margin:0 0 10px;font-size:16px;}
     .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+    .face-mode-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap;}
+    .face-mode-row label{margin:0;font-size:13px;}
+    .face-mode-row select{margin:0;min-width:140px;}
     .field label{margin:0 0 6px;font-weight:600;font-size:13px;color:#0f172a;}
-    .field textarea{
+    .field textarea,
+    .field input[type="text"]{
       width:100%;
       min-height:70px;
       padding:10px 12px;
@@ -40,6 +44,12 @@
       resize:vertical;
       box-sizing:border-box;
     }
+    .field input[type="text"]{min-height:0;resize:none;}
+    .face-panel{display:flex;flex-direction:column;gap:10px;}
+    .face-panel[hidden]{display:none;}
+    .image-upload-row{display:flex;flex-direction:column;gap:6px;}
+    .file-status{font-size:12px;color:#475569;min-height:16px;}
+    .file-status.ready{color:#0f766e;}
     @media (max-width: 640px){
       .grid{grid-template-columns:1fr;}
     }
@@ -146,6 +156,7 @@
 
     let uploadedImageDataUrl = "";
     let uploadedBgImageDataUrl = "";
+    const cardEditorState = [];
 
     function escapeHtml(str){
       return String(str ?? "")
@@ -213,6 +224,59 @@
 
     function stripMarkdownLinks(text){
       return String(text ?? "").replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, "$1");
+    }
+
+    function createDefaultFaceState(side){
+      return {
+        type: "text",
+        text: side === "front" ? "Front" : "Back",
+        src: "",
+        alt: "",
+        imageName: ""
+      };
+    }
+
+    function ensureCardState(count){
+      for(let i=0;i<count;i+=1){
+        if(!cardEditorState[i]){
+          cardEditorState[i] = {
+            front: createDefaultFaceState("front"),
+            back: createDefaultFaceState("back")
+          };
+          continue;
+        }
+        if(!cardEditorState[i].front) cardEditorState[i].front = createDefaultFaceState("front");
+        if(!cardEditorState[i].back) cardEditorState[i].back = createDefaultFaceState("back");
+      }
+    }
+
+    function getFaceState(cardIndex, side){
+      ensureCardState(cardIndex + 1);
+      return cardEditorState[cardIndex][side];
+    }
+
+    function getFaceLabel(side){
+      return side === "front" ? "Front" : "Back";
+    }
+
+    function getFaceTextId(cardNumber, side){
+      return `card${cardNumber}${side === "front" ? "Front" : "Back"}`;
+    }
+
+    function getFaceWarnId(cardNumber, side){
+      return `${getFaceTextId(cardNumber, side)}Warn`;
+    }
+
+    function getFaceTypeId(cardNumber, side){
+      return `card${cardNumber}${side === "front" ? "Front" : "Back"}Type`;
+    }
+
+    function getFaceImageId(cardNumber, side){
+      return `card${cardNumber}${side === "front" ? "Front" : "Back"}Image`;
+    }
+
+    function getFaceAltId(cardNumber, side){
+      return `card${cardNumber}${side === "front" ? "Front" : "Back"}Alt`;
     }
 
     function buildRowsForCount(count){
@@ -284,24 +348,34 @@
       const count = Number(cardCountSelect.value || 2);
       const useUniform = (count === 5 || count === 7) && uniformSizeCheck.checked;
       for(let i=1;i<=count;i+=1){
-        const frontEl = document.getElementById(`card${i}Front`);
-        const backEl  = document.getElementById(`card${i}Back`);
-        const frontWarn = document.getElementById(`card${i}FrontWarn`);
-        const backWarn  = document.getElementById(`card${i}BackWarn`);
-        if(!frontEl || !backEl || !frontWarn || !backWarn) continue;
-
         const box = estimateCardBox(count, i-1, useUniform);
         const MIN = 8;
-
         const baseMax = box.w * 0.14;
-        const frontMax = Math.round(baseMax * 0.88);
-        const backMax  = Math.round(baseMax);
+        const faces = [
+          { side: "front", warnId: getFaceWarnId(i, "front"), maxPx: Math.round(baseMax * 0.88), fontWeight: 700, wordBreak: "normal", overflowWrap: "normal", hyphens: "none" },
+          { side: "back",  warnId: getFaceWarnId(i, "back"),  maxPx: Math.round(baseMax),        fontWeight: 400, wordBreak: "break-word", overflowWrap: "break-word", hyphens: "manual" }
+        ];
 
-        const frontFit = fitTextToBox(stripMarkdownLinks(frontEl.value), box.w, box.h, {minPx: MIN, maxPx: frontMax, fontWeight: 700, wordBreak: "normal", overflowWrap: "normal", hyphens: "none"});
-        const backFit  = fitTextToBox(stripMarkdownLinks(backEl.value),  box.w, box.h, {minPx: MIN, maxPx: backMax,  fontWeight: 400, wordBreak: "break-word", overflowWrap: "break-word", hyphens: "manual"});
+        faces.forEach((faceConfig) => {
+          const warnEl = document.getElementById(faceConfig.warnId);
+          if(!warnEl) return;
 
-        applyWarn(frontWarn, frontFit, frontMax);
-        applyWarn(backWarn,  backFit,  backMax);
+          const faceState = getFaceState(i - 1, faceConfig.side);
+          if(faceState.type !== "text"){
+            applyWarn(warnEl, null, faceConfig.maxPx);
+            return;
+          }
+
+          const fit = fitTextToBox(stripMarkdownLinks(faceState.text), box.w, box.h, {
+            minPx: MIN,
+            maxPx: faceConfig.maxPx,
+            fontWeight: faceConfig.fontWeight,
+            wordBreak: faceConfig.wordBreak,
+            overflowWrap: faceConfig.overflowWrap,
+            hyphens: faceConfig.hyphens
+          });
+          applyWarn(warnEl, fit, faceConfig.maxPx);
+        });
       }
     }
 
@@ -311,8 +385,109 @@
       _warnTimer = window.setTimeout(updateWarningsForAll, 80);
     }
 
+    function updateFaceModeUI(field, faceState){
+      const textPanel = field.querySelector('.face-panel[data-panel="text"]');
+      const imagePanel = field.querySelector('.face-panel[data-panel="image"]');
+      if(textPanel) textPanel.hidden = faceState.type !== "text";
+      if(imagePanel) imagePanel.hidden = faceState.type !== "image";
+    }
+
+    function createFaceField(cardNumber, side){
+      const faceState = getFaceState(cardNumber - 1, side);
+      const faceLabel = getFaceLabel(side);
+
+      const field = document.createElement("div");
+      field.className = "field";
+      field.dataset.cardIndex = String(cardNumber - 1);
+      field.dataset.side = side;
+
+      const modeRow = document.createElement("div");
+      modeRow.className = "face-mode-row";
+      const modeLabel = document.createElement("label");
+      modeLabel.setAttribute("for", getFaceTypeId(cardNumber, side));
+      modeLabel.textContent = `${faceLabel} content type`;
+
+      const modeSelect = document.createElement("select");
+      modeSelect.id = getFaceTypeId(cardNumber, side);
+      modeSelect.dataset.role = "face-type";
+      const textOption = document.createElement("option");
+      textOption.value = "text";
+      textOption.textContent = "Text";
+      const imageOption = document.createElement("option");
+      imageOption.value = "image";
+      imageOption.textContent = "Image";
+      modeSelect.appendChild(textOption);
+      modeSelect.appendChild(imageOption);
+      modeSelect.value = faceState.type;
+      modeRow.appendChild(modeLabel);
+      modeRow.appendChild(modeSelect);
+      field.appendChild(modeRow);
+
+      const textPanel = document.createElement("div");
+      textPanel.className = "face-panel";
+      textPanel.dataset.panel = "text";
+      const textLabel = document.createElement("label");
+      textLabel.setAttribute("for", getFaceTextId(cardNumber, side));
+      textLabel.textContent = `${faceLabel} text`;
+      const textInput = document.createElement("textarea");
+      textInput.id = getFaceTextId(cardNumber, side);
+      textInput.dataset.role = "face-text";
+      textInput.placeholder = `Enter the text for the ${faceLabel.toUpperCase()} of this flipcard`;
+      textInput.value = faceState.text;
+      textPanel.appendChild(textLabel);
+      textPanel.appendChild(textInput);
+      field.appendChild(textPanel);
+
+      const imagePanel = document.createElement("div");
+      imagePanel.className = "face-panel";
+      imagePanel.dataset.panel = "image";
+
+      const imageUploadRow = document.createElement("div");
+      imageUploadRow.className = "image-upload-row";
+      const imageLabel = document.createElement("label");
+      imageLabel.setAttribute("for", getFaceImageId(cardNumber, side));
+      imageLabel.textContent = `${faceLabel} image`;
+      const imageInput = document.createElement("input");
+      imageInput.id = getFaceImageId(cardNumber, side);
+      imageInput.type = "file";
+      imageInput.accept = "image/*";
+      imageInput.dataset.role = "face-image";
+      const fileStatus = document.createElement("div");
+      fileStatus.className = `file-status${faceState.src ? " ready" : ""}`;
+      fileStatus.dataset.role = "file-status";
+      fileStatus.textContent = faceState.src
+        ? `Image selected: ${faceState.imageName || "uploaded image"}`
+        : "No image selected yet.";
+      imageUploadRow.appendChild(imageLabel);
+      imageUploadRow.appendChild(imageInput);
+      imageUploadRow.appendChild(fileStatus);
+      imagePanel.appendChild(imageUploadRow);
+
+      const altLabel = document.createElement("label");
+      altLabel.setAttribute("for", getFaceAltId(cardNumber, side));
+      altLabel.textContent = "Image alt text";
+      const altInput = document.createElement("input");
+      altInput.id = getFaceAltId(cardNumber, side);
+      altInput.type = "text";
+      altInput.dataset.role = "face-alt";
+      altInput.placeholder = "Describe the image for screen readers";
+      altInput.value = faceState.alt;
+      imagePanel.appendChild(altLabel);
+      imagePanel.appendChild(altInput);
+      field.appendChild(imagePanel);
+
+      const warn = document.createElement("div");
+      warn.className = "warn";
+      warn.id = getFaceWarnId(cardNumber, side);
+      field.appendChild(warn);
+
+      updateFaceModeUI(field, faceState);
+      return field;
+    }
+
     function renderCardTextInputs(){
       const count = Number(cardCountSelect.value || 2);
+      ensureCardState(count);
       cardTextFields.innerHTML = "";
 
       for(let i=1;i<=count;i+=1){
@@ -326,42 +501,8 @@
         const grid = document.createElement("div");
         grid.className = "grid";
 
-        const frontField = document.createElement("div");
-        frontField.className = "field";
-        const frontLabel = document.createElement("label");
-        frontLabel.setAttribute("for", `card${i}Front`);
-        frontLabel.textContent = "Front text";
-        const frontInput = document.createElement("textarea");
-        frontInput.id = `card${i}Front`;
-        frontInput.placeholder = "Enter the text for the FRONT of this flipcard";
-        frontInput.value = "Front";
-        frontField.appendChild(frontLabel);
-        frontField.appendChild(frontInput);
-
-        const frontWarn = document.createElement("div");
-        frontWarn.className = "warn";
-        frontWarn.id = `card${i}FrontWarn`;
-        frontField.appendChild(frontWarn);
-
-        const backField = document.createElement("div");
-        backField.className = "field";
-        const backLabel = document.createElement("label");
-        backLabel.setAttribute("for", `card${i}Back`);
-        backLabel.textContent = "Back text";
-        const backInput = document.createElement("textarea");
-        backInput.id = `card${i}Back`;
-        backInput.placeholder = "Enter the text for the BACK of this flipcard";
-        backInput.value = "Back";
-        backField.appendChild(backLabel);
-        backField.appendChild(backInput);
-
-        const backWarn = document.createElement("div");
-        backWarn.className = "warn";
-        backWarn.id = `card${i}BackWarn`;
-        backField.appendChild(backWarn);
-
-        grid.appendChild(frontField);
-        grid.appendChild(backField);
+        grid.appendChild(createFaceField(i, "front"));
+        grid.appendChild(createFaceField(i, "back"));
         wrap.appendChild(grid);
         cardTextFields.appendChild(wrap);
       }
@@ -369,7 +510,70 @@
 
     renderCardTextInputs();
     updateWarningsForAll();
-    cardTextFields.addEventListener('input', scheduleWarnings);
+    cardTextFields.addEventListener('input', (event) => {
+      const field = event.target.closest('.field');
+      if(!field) return;
+
+      const cardIndex = Number(field.dataset.cardIndex);
+      const side = field.dataset.side;
+      const faceState = getFaceState(cardIndex, side);
+
+      if(event.target.dataset.role === "face-text"){
+        faceState.text = event.target.value;
+        downloadLink.style.display = "none";
+        scheduleWarnings();
+        return;
+      }
+
+      if(event.target.dataset.role === "face-alt"){
+        faceState.alt = event.target.value;
+        downloadLink.style.display = "none";
+      }
+    });
+
+    cardTextFields.addEventListener('change', (event) => {
+      const field = event.target.closest('.field');
+      if(!field) return;
+
+      const cardIndex = Number(field.dataset.cardIndex);
+      const side = field.dataset.side;
+      const faceState = getFaceState(cardIndex, side);
+
+      if(event.target.dataset.role === "face-type"){
+        faceState.type = event.target.value === "image" ? "image" : "text";
+        updateFaceModeUI(field, faceState);
+        downloadLink.style.display = "none";
+        scheduleWarnings();
+        return;
+      }
+
+      if(event.target.dataset.role === "face-image"){
+        const file = event.target.files && event.target.files[0];
+        const statusEl = field.querySelector('[data-role="file-status"]');
+        if(!file){
+          faceState.src = "";
+          faceState.imageName = "";
+          if(statusEl){
+            statusEl.classList.remove("ready");
+            statusEl.textContent = "No image selected yet.";
+          }
+          downloadLink.style.display = "none";
+          return;
+        }
+
+        const reader = new FileReader();
+        reader.addEventListener("load", () => {
+          faceState.src = String(reader.result || "");
+          faceState.imageName = file.name || "uploaded image";
+          if(statusEl){
+            statusEl.classList.add("ready");
+            statusEl.textContent = `Image selected: ${faceState.imageName}`;
+          }
+          downloadLink.style.display = "none";
+        });
+        reader.readAsDataURL(file);
+      }
+    });
 
     cardCountSelect.addEventListener("change", () => {
       const count = Number(cardCountSelect.value || 2);
@@ -436,11 +640,33 @@
 
       const cardsData = [];
       for(let i=1;i<=cardCount;i+=1){
-        const frontEl = document.getElementById(`card${i}Front`);
-        const backEl = document.getElementById(`card${i}Back`);
-        const frontText = (frontEl && frontEl.value.trim()) ? frontEl.value.trim() : "Front";
-        const backText  = (backEl && backEl.value.trim()) ? backEl.value.trim() : "Back";
-        cardsData.push({ front: frontText, back: backText });
+        const frontState = getFaceState(i - 1, "front");
+        const backState = getFaceState(i - 1, "back");
+        const faceDefaults = { front: "Front", back: "Back" };
+
+        function buildFacePayload(faceState, side){
+          if(faceState.type === "image"){
+            if(!faceState.src){
+              alert(`Please upload an image for Flipcard ${i} ${getFaceLabel(side).toLowerCase()}.`);
+              return null;
+            }
+            return {
+              type: "image",
+              src: faceState.src,
+              alt: faceState.alt.trim() || "Flipcard image"
+            };
+          }
+
+          return {
+            type: "text",
+            text: faceState.text.trim() || faceDefaults[side]
+          };
+        }
+
+        const front = buildFacePayload(frontState, "front");
+        const back = buildFacePayload(backState, "back");
+        if(!front || !back) return;
+        cardsData.push({ front, back });
       }
 
       const landingMsgText = escapeForTemplate(
@@ -643,6 +869,28 @@
 
     .flipcard-front{ font-weight:700; }
     .flipcard-back{ transform:rotateY(180deg); background:${themeColors.cardBackBg}; font-weight:400; }
+    .flipcard-face.has-image{
+      padding:20px;
+      overflow:hidden;
+    }
+    .flipcard-image-wrap{
+      width:100%;
+      height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:8px;
+      box-sizing:border-box;
+    }
+    .flipcard-image{
+      display:block;
+      max-width:100%;
+      max-height:100%;
+      width:auto;
+      height:auto;
+      object-fit:contain;
+      border-radius:10px;
+    }
     .flipcard-face a{
       color:inherit;
       text-decoration:underline;
@@ -742,7 +990,55 @@
       card.setAttribute('aria-pressed', isPressed ? 'true' : 'false');
     }
 
-    function createFlipcard(frontText, backText){
+    function normalizeFaceData(faceData, fallbackText){
+      if(faceData && faceData.type === 'image'){
+        return {
+          type: 'image',
+          src: String(faceData.src || ''),
+          alt: String(faceData.alt || 'Flipcard image')
+        };
+      }
+
+      if(faceData && faceData.type === 'text'){
+        return {
+          type: 'text',
+          text: String(faceData.text || fallbackText)
+        };
+      }
+
+      return {
+        type: 'text',
+        text: String(faceData || fallbackText)
+      };
+    }
+
+    function createFaceElement(faceData, side){
+      const fallbackText = side === 'front' ? 'Front' : 'Back';
+      const normalized = normalizeFaceData(faceData, fallbackText);
+      const face = document.createElement('div');
+      face.className = 'flipcard-face ' + (side === 'front' ? 'flipcard-front' : 'flipcard-back');
+      face.dataset.contentType = normalized.type;
+
+      if(normalized.type === 'image' && normalized.src){
+        face.classList.add('has-image');
+        const imageWrap = document.createElement('div');
+        imageWrap.className = 'flipcard-image-wrap';
+
+        const img = document.createElement('img');
+        img.className = 'flipcard-image';
+        img.src = normalized.src;
+        img.alt = normalized.alt || 'Flipcard image';
+
+        imageWrap.appendChild(img);
+        face.appendChild(imageWrap);
+        return face;
+      }
+
+      face.innerHTML = formatCardText(normalized.text);
+      return face;
+    }
+
+    function createFlipcard(frontData, backData){
       const card = document.createElement('div');
       card.className = 'flipcard';
       card.setAttribute('role', 'button');
@@ -752,13 +1048,8 @@
       const inner = document.createElement('div');
       inner.className = 'flipcard-inner';
 
-      const front = document.createElement('div');
-      front.className = 'flipcard-face flipcard-front';
-      front.innerHTML = formatCardText(frontText);
-
-      const back = document.createElement('div');
-      back.className = 'flipcard-face flipcard-back';
-      back.innerHTML = formatCardText(backText);
+      const front = createFaceElement(frontData, 'front');
+      const back = createFaceElement(backData, 'back');
 
       inner.appendChild(front);
       inner.appendChild(back);
@@ -875,7 +1166,7 @@
     }
 
     function applyCardAutoFit(){
-      const faces = document.querySelectorAll('.flipcard-face');
+      const faces = document.querySelectorAll('.flipcard-face[data-content-type="text"]');
       const results = [];
 
       faces.forEach(face => {
